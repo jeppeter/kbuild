@@ -1,0 +1,17 @@
+to set 
+PATH_SDK_WIN32SDK="C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A"
+PATH_SDK_WINPSDK="C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A"
+PATH_SDK_WINSDK="C:\Program Files (x86)\Microsoft SDKs\Windows\v7.0A"
+PATH_TOOL_VCC70="D:\vs2010\VC"
+PATH_TOOL_VCC80AMD64=D:\vs2010\VC
+
+will make
+PATH_SDK_WIN32SDK=d:\sdks
+PATH_SDK_WINPSDK=d:\sdks
+PATH_SDK_WINSDK=d:\sdks
+PATH_TOOL_VCC70="D:\vs2010\VC"
+PATH_TOOL_VCC80AMD64=D:\vs2010\VC
+
+and this will ok
+
+
