@@ -15,3 +15,6 @@ PATH_TOOL_VCC80AMD64=D:\vs2010\VC
 and this will ok
 
 
+to compile x86
+please run in visual studio x86 vars.bat
+
