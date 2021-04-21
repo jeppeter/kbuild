@@ -234,6 +234,7 @@ ifeq ($(filter-out win nt,$(KBUILD_TARGET)),)
  TEMPLATE_BIN_CFLAGS            = -W3 -Zi -Zl
  TEMPLATE_BIN_CFLAGS.release    = -O2
  TEMPLATE_BIN_CFLAGS.profile    = -O2 -GH -Gh
+ TEMPLATE_BIN_CFLAGS.x86        = -wd4996
  TEMPLATE_BIN_INCS             += \
 	. \
 	$(PATH_GNUMAKE_SRC)/w32/include \

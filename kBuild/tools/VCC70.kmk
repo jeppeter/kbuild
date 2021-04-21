@@ -32,6 +32,7 @@
 #
 
 TOOL_VCC70 := Visual C++ 7.0 (aka Visual Studio .NET), targeting x86.
+TOOL_VCC70_LINK_EXTRA_COMMAND.win.amd64 = /MAPINFO:LINES
 
 # Tool Specific Properties
 ifndef PATH_TOOL_VCC70
@@ -269,7 +270,7 @@ TOOL_VCC70_LINK_PROGRAM_DEPORD =
 define TOOL_VCC70_LINK_PROGRAM_CMDS
 	$(QUIET)$(TOOL_VCC70_LD) $(flags) \
 		/OUT:$(out) \
-		/MAPINFO:EXPORTS /INCREMENTAL:NO /MAPINFO:LINES \
+		/MAPINFO:EXPORTS /INCREMENTAL:NO $(TOOL_VCC70_LINK_EXTRA_COMMAND) \
 		/MAP:$(outbase).map \
 		$(foreach def,$(filter %.def,$(othersrc)), /DEF:$(def)) \
 		$(subst /,\\,$(filter %.exp %.res,$(othersrc))) \
@@ -301,7 +302,7 @@ define TOOL_VCC70_LINK_DLL_CMDS
 	$(QUIET)$(TOOL_VCC70_LD) $(flags) \
 		/OUT:$(out) \
 		/IMPLIB:$(outbase).lib \
-		/MAPINFO:EXPORTS /INCREMENTAL:NO /MAPINFO:LINES \
+		/MAPINFO:EXPORTS /INCREMENTAL:NO $(TOOL_VCC70_LINK_EXTRA_COMMAND) \
 		/MAP:$(outbase).map \
 		/DLL \
 		$(foreach def,$(filter %.def,$(othersrc)), /DEF:$(def)) \
@@ -335,7 +336,7 @@ TOOL_VCC70_LINK_SYSMOD_DEPORD =
 define TOOL_VCC70_LINK_SYSMOD_CMDS
 	$(QUIET)$(TOOL_VCC70_LD) $(flags) \
 		/OUT:$(out) \
-		/MAPINFO:EXPORTS /INCREMENTAL:NO /MAPINFO:LINES \
+		/MAPINFO:EXPORTS /INCREMENTAL:NO  $(TOOL_VCC70_LINK_EXTRA_COMMAND) \
 		/MAP:$(outbase).map \
 		$(foreach def,$(filter %.def,$(othersrc)), /DEF:$(def)) \
 		$(subst /,\\,$(filter %.exp %.res,$(othersrc))) \
