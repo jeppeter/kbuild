@@ -1,9 +1,10 @@
-/* $Id: shtypes.h 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
- *
  * Wrapper for missing types and such.
- *
- * Copyright (c) 2007-2009  knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ */
+
+/*
+ * Copyright (c) 2007-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  *
  * This file is part of kBuild.
@@ -31,12 +32,13 @@
 
 #include <sys/types.h>
 #include <stdlib.h>
-#ifndef _MSC_VER
+#ifdef __HAIKU__
+# include <posix/signal.h> /* silly */
+#elif !defined(_MSC_VER)
 # include <sys/signal.h>
 #endif
 
 #ifdef _MSC_VER
-# include <io.h> /* intptr_t and uintptr_t */
 typedef signed char     int8_t;
 typedef unsigned char   uint8_t;
 typedef short           int16_t;
@@ -45,6 +47,12 @@ typedef int             int32_t;
 typedef unsigned int    uint32_t;
 typedef _int64          int64_t;
 typedef unsigned _int64 uint64_t;
+# if _MSC_VER >= 1400
+#  include <io.h> /* intptr_t and uintptr_t */
+# else
+typedef KIPTR           intptr_t;
+typedef KUPTR           uintptr_t;
+# endif
 
 #define INT16_C(c)      (c)
 #define INT32_C(c)      (c)
@@ -111,6 +119,16 @@ typedef struct shsigaction
     shsigset_t  sh_mask;
     int         sh_flags;
 } shsigaction_t;
+
+/* SH_NORETURN_1 must be both on prototypes and definitions, while
+   SH_NORETURN_2 should at least be on the prototype. */
+#ifdef _MSC_VER
+# define SH_NORETURN_1 __declspec(noreturn)
+# define SH_NORETURN_2
+#else
+# define SH_NORETURN_1
+# define SH_NORETURN_2 __attribute__((__noreturn__))
+#endif
 
 #endif
 

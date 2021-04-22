@@ -1,11 +1,11 @@
 @echo off
-REM $Id: envwin.cmd 2366 2009-11-30 00:27:33Z bird $
+REM $Id$
 REM REM @file
 REM Environment setup script.
 REM
 
 REM
-REM Copyright (c) 2005-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+REM Copyright (c) 2005-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
 REM
 REM This file is part of kBuild.
 REM
@@ -47,7 +47,7 @@ set _KBUILD_OVERRIDE_TARGET_ARCH=0
 REM
 REM Parse the arguments.
 REM
-REM Note: The 0 argument must be safed as it is also shifted.
+REM Note: The 0 argument must be saved as it is also shifted.
 REM
 set _KBUILD_SELF=%0
 set _KBUILD_OPT_FULL=0

@@ -1,6 +1,5 @@
 /* vmsify.c -- Module for vms <-> unix file name conversion
-Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-2007 Free Software Foundation, Inc.
+Copyright (C) 1996-2016 Free Software Foundation, Inc.
 This file is part of GNU Make.
 
 GNU Make is free software; you can redistribute it and/or modify it under the
@@ -22,6 +21,8 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+
+#include "makeint.h"
 
 #if VMS
 #include <unixlib.h>
@@ -120,7 +121,11 @@ trnlog (const char *name)
   struct dsc$descriptor_s name_dsc;
   char *s;
 
-  INIT_DSC_CSTRING (name_dsc, name);
+  /*
+   * the string isn't changed, but there is no string descriptor with
+   * "const char *dsc$a_pointer"
+   */
+  INIT_DSC_CSTRING (name_dsc, (char *)name);
 
   stat = lib$sys_trnlog (&name_dsc, &resltlen, &reslt_dsc);
 
@@ -134,9 +139,7 @@ trnlog (const char *name)
     }
   reslt[resltlen] = '\0';
 
-  s = malloc (resltlen+1);
-  if (s == 0)
-    return "";
+  s = xmalloc (resltlen+1);
   strcpy (s, reslt);
   return s;
 }
@@ -218,15 +221,19 @@ vmsify (const char *name, int type)
    max 39 filetype
    max 5 version
 */
-#define MAXPATHLEN 512
+/* todo: VMSMAXPATHLEN is defined for ODS2 names: it needs to be adjusted. */
+#define VMSMAXPATHLEN 512
 
   enum namestate nstate;
-  static char vmsname[MAXPATHLEN+1];
+  static char vmsname[VMSMAXPATHLEN+1];
   const char *fptr;
   const char *t;
   char *vptr;
   int as_dir;
   int count;
+  const char *s;
+  const char *s1;
+  const char *s2;
 
   if (name == 0)
     return 0;
@@ -239,8 +246,8 @@ vmsify (const char *name, int type)
 
   if (t != 0)
     {
-      const char *s1;
-      const char *s2;
+//      const char *s1;
+//      const char *s2;
 
       if (type == 1)
         {
@@ -272,8 +279,9 @@ vmsify (const char *name, int type)
 
   if (t != 0)
     {
-      const char *s;
-      const char *s1 = strchr (t+1, '[');
+//      const char *s;
+//      const char *s1 = strchr (t+1, '[');
+      s1 = strchr (t+1, '[');
       if (s1 == 0)
 	{
           strcpy (vmsname, name);
@@ -388,16 +396,16 @@ vmsify (const char *name, int type)
 
 	  case 3:				/* '//' at start */
             {
-            const char *s;
-            const char *s1;
+//            const char *s;
+//            const char *s1;
             char *vp;
 	    while (*fptr == '/')	/* collapse all '/' */
 	      fptr++;
 	    if (*fptr == 0)		/* just // */
 	      {
-		char cwdbuf[MAXPATHLEN+1];
+		char cwdbuf[VMSMAXPATHLEN+1];
 
-		s1 = getcwd(cwdbuf, MAXPATHLEN);
+		s1 = getcwd(cwdbuf, VMSMAXPATHLEN);
 		if (s1 == 0)
 		  {
                     vmsname[0] = '\0';
@@ -789,9 +797,9 @@ vmsify (const char *name, int type)
 	      }
 	    {					/* got '..' or '../' */
               char *vp;
-	      char cwdbuf[MAXPATHLEN+1];
+	      char cwdbuf[VMSMAXPATHLEN+1];
 
-	      vp = getcwd(cwdbuf, MAXPATHLEN);
+	      vp = getcwd(cwdbuf, VMSMAXPATHLEN);
 	      if (vp == 0)
 		{
                   vmsname[0] = '\0';
@@ -849,9 +857,9 @@ vmsify (const char *name, int type)
 
 	    {
               char *vp;
-	      char cwdbuf[MAXPATHLEN+1];
+	      char cwdbuf[VMSMAXPATHLEN+1];
 
-	      vp = getcwd(cwdbuf, MAXPATHLEN);
+	      vp = getcwd(cwdbuf, VMSMAXPATHLEN);
 	      if (vp == 0)
 		{
                   vmsname[0] = '\0';

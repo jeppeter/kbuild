@@ -116,37 +116,53 @@ extern char *const parsekwd[];
  * have to change the find_command routine as well.
  */
 
-void
+SH_NORETURN_1 void
 shellexec(shinstance *psh, char **argv, char **envp, const char *path, int idx, int vforked)
 {
 	char *cmdname;
 	int e;
+	const char *argv0 = argv[0];
+	int argv0len = (int)strlen(argv0);
+	char kmkcmd[48];
 #ifdef PC_EXE_EXTS
-        int has_ext = (int)strlen(argv[0]) - 4;
+        int has_ext = argv0len - 4;
         has_ext = has_ext > 0
-            && argv[0][has_ext] == '.'
+            && argv0[has_ext] == '.'
             /* use strstr and upper/lower permuated extensions to avoid multiple strcasecmp calls. */
             && strstr("exe;" "Exe;" "EXe;" "EXE;" "ExE;" "eXe;" "eXE;" "exE;"
                       "cmd;" "Cmd;" "CMd;" "CMD;" "CmD;" "cMd;" "cMD;" "cmD;"
                       "com;" "Com;" "COm;" "COM;" "CoM;" "cOm;" "cOM;" "coM;"
                       "bat;" "Bat;" "BAt;" "BAT;" "BaT;" "bAt;" "bAT;" "baT;"
                       "btm;" "Btm;" "BTm;" "BTM;" "BtM;" "bTm;" "bTM;" "btM;",
-                      argv[0] + has_ext + 1)
+		      argv0 + has_ext + 1)
                != NULL;
 #else
 	const int has_ext = 1;
 #endif
-	TRACE((psh, "shellexec: argv[0]=%s idx=%d\n", argv[0], idx));
-	if (strchr(argv[0], '/') != NULL) {
-		cmdname = stalloc(psh, strlen(argv[0]) + 5);
-		strcpy(cmdname, argv[0]);
+	TRACE((psh, "shellexec: argv[0]=%s idx=%d\n", argv0, idx));
+	if (strchr(argv0, '/') != NULL) {
+		cmdname = stalloc(psh, argv0len + 5);
+		strcpy(cmdname, argv0);
 		tryexec(psh, cmdname, argv, envp, vforked, has_ext);
 		TRACE((psh, "shellexec: cmdname=%s\n", cmdname));
 		stunalloc(psh, cmdname);
 		e = errno;
 	} else {
+		/* Before we search the PATH, transform kmk_builtin_% to kmk_% so we don't
+		   need to be too careful mixing internal and external kmk command. */
+		if (   argv0len > 12
+		    && argv0len < 42
+		    && strncmp(argv0, "kmk_builtin_", 12) == 0
+		    && strpbrk(argv0 + 12, "./\\-:;<>") == NULL) {
+			memcpy(kmkcmd, "kmk_", 4);
+			memcpy(&kmkcmd[4], argv0 + 12, argv0len + 1 - 8);
+			TRACE((psh, "shellexec: dropped '_builtin' from %s to %s\n", argv0, kmkcmd));
+			argv0len -= 8;
+			argv0 = kmkcmd;
+		}
+
 		e = ENOENT;
-		while ((cmdname = padvance(psh, &path, argv[0])) != NULL) {
+		while ((cmdname = padvance(psh, &path, argv0)) != NULL) {
 			if (--idx < 0 && psh->pathopt == NULL) {
 				tryexec(psh, cmdname, argv, envp, vforked, has_ext);
 				if (errno != ENOENT && errno != ENOTDIR)
@@ -212,7 +228,7 @@ tryexec(shinstance *psh, char *cmd, char **argv, char **envp, int vforked, int h
 		}
 		initshellproc(psh);
 		setinputfile(psh, cmd, 0);
-		psh->commandname = psh->arg0 = savestr(argv[0]);
+		psh->commandname = psh->arg0 = savestr(psh, argv[0]);
 #ifdef EXEC_HASH_BANG_SCRIPT
 		pgetc(psh); pungetc(psh);		/* fill up input buffer */
 		p = psh->parsenextc;
@@ -227,8 +243,21 @@ tryexec(shinstance *psh, char *cmd, char **argv, char **envp, int vforked, int h
 	errno = e;
 }
 
-
 #ifdef EXEC_HASH_BANG_SCRIPT
+
+/*
+ * Checks if NAME is the (base) name of the shell executable or something
+ * very similar.
+ */
+STATIC int
+is_shell_exe_name(const char *name)
+{
+    return equal(name, "kmk_ash")
+        || equal(name, "kmk_sh")
+	|| equal(name, "kash")
+        || equal(name, "sh");
+}
+
 /*
  * Execute an interpreter introduced by "#!", for systems where this
  * feature has not been built into the kernel.  If the interpreter is
@@ -239,7 +268,7 @@ tryexec(shinstance *psh, char *cmd, char **argv, char **envp, int vforked, int h
  * reading any input.  It would benefit from a rewrite.
  */
 
-#define NEWARGS 5
+#define NEWARGS 16
 
 STATIC void
 execinterp(shinstance *psh, char **argv, char **envp)
@@ -251,10 +280,11 @@ execinterp(shinstance *psh, char **argv, char **envp)
 	char *p;
 	char **ap;
 	char *newargs[NEWARGS];
-	int i;
+	intptr_t i;
 	char **ap2;
 	char **new;
 
+	/* Split the string into arguments. */
 	n = psh->parsenleft - 2;
 	inp = psh->parsenextc + 2;
 	ap = newargs;
@@ -275,38 +305,52 @@ bad:		  error(psh, "Bad #! line");
 		n++, inp--;
 		*ap++ = grabstackstr(psh, outp);
 	}
-	if (ap == newargs + 1) {	/* if no args, maybe no exec is needed */
-		p = newargs[0];
-		for (;;) {
-			if (equal(p, "sh") || equal(p, "ash")) {
-				TRACE((psh, "hash bang self\n"));
-				return;
-			}
-			while (*p != '/') {
-				if (*p == '\0')
-					goto break2;
-				p++;
-			}
-			p++;
-		}
-break2:;
+
+	/* /usr/bin/env emulation, very common with kash/kmk_ash. */
+	i = ap - newargs;
+	if (i > 1 && equal(newargs[0], "/usr/bin/env")) {
+		if (   !strchr(newargs[1], '=')
+		    && newargs[1][0] != '-') {
+		    /* shellexec below searches the PATH for us, so just
+		       drop /usr/bin/env. */
+		    TRACE((psh, "hash bang /usr/bin/env utility, dropping /usr/bin/env\n"));
+		    ap--;
+		    i--;
+		    for (n = 0; n < i; n++)
+			    newargs[n] = newargs[n + 1];
+		} /* else: complicated invocation */
 	}
+
+	/* If the interpreter is the shell or a similar shell, there is
+	   no need to exec. */
+	if (i == 1) {
+		p = strrchr(newargs[0], '/');
+		if (!p)
+			p = newargs[0];
+		if (is_shell_exe_name(p)) {
+			TRACE((psh, "hash bang self\n"));
+			return;
+		}
+	}
+
+	/* Combine the two argument lists and exec. */
 	i = (char *)ap - (char *)newargs;		/* size in bytes */
 	if (i == 0)
 		error(psh, "Bad #! line");
 	for (ap2 = argv ; *ap2++ != NULL ; );
-	new = ckmalloc(i + ((char *)ap2 - (char *)argv));
+	new = ckmalloc(psh, i + ((char *)ap2 - (char *)argv));
 	ap = newargs, ap2 = new;
 	while ((i -= sizeof (char **)) >= 0)
 		*ap2++ = *ap++;
 	ap = argv;
-	while (*ap2++ = *ap++);
+	while ((*ap2++ = *ap++))
+	    /* nothing*/;
 	TRACE((psh, "hash bang '%s'\n", new[0]));
 	shellexec(psh, new, envp, pathval(psh), 0, 0);
 	/* NOTREACHED */
 }
-#endif
 
+#endif /* EXEC_HASH_BANG_SCRIPT */
 
 
 /*
@@ -524,9 +568,10 @@ find_command(shinstance *psh, char *name, struct cmdentry *entry, int act, const
 	struct stat statb;
 	int e;
 	int (*bltin)(shinstance*,int,char **);
-
+	int argv0len = (int)strlen(name);
+	char kmkcmd[48];
 #ifdef PC_EXE_EXTS
-        int has_ext = (int)(strlen(name) - 4);
+        int has_ext = argv0len - 4;
         has_ext = has_ext > 0
             && name[has_ext] == '.'
             /* use strstr and upper/lower permuated extensions to avoid multiple strcasecmp calls. */
@@ -609,6 +654,19 @@ find_command(shinstance *psh, char *name, struct cmdentry *entry, int act, const
 			prev = psh->builtinloc;
 		else
 			prev = cmdp->param.index;
+	}
+
+	/* Before we search the PATH, transform kmk_builtin_% to kmk_% so we don't
+	   need to be too careful mixing internal and external kmk command. */
+	if (   argv0len > 12
+	    && argv0len < (int)sizeof(kmkcmd)
+	    && strncmp(name, "kmk_builtin_", 12) == 0
+	    && strpbrk(name + 12, "./\\-:;<>") == NULL) {
+	        memcpy(kmkcmd, "kmk_", 4);
+		memcpy(&kmkcmd[4], name + 12, argv0len + 1 - 8);
+		TRACE((psh, "find_command: dropped '_builtin' from %s to %s\n", name, kmkcmd));
+		argv0len -= 8;
+		name = kmkcmd;
 	}
 
 	e = ENOENT;
@@ -867,7 +925,7 @@ clearcmdentry(shinstance *psh, int firstchange)
 			 || (cmdp->cmdtype == CMDBUILTIN &&
 			     psh->builtinloc >= firstchange)) {
 				*pp = cmdp->next;
-				ckfree(cmdp);
+				ckfree(psh, cmdp);
 			} else {
 				pp = &cmdp->next;
 			}
@@ -907,8 +965,8 @@ deletefuncs(shinstance *psh)
 		while ((cmdp = *pp) != NULL) {
 			if (cmdp->cmdtype == CMDFUNCTION) {
 				*pp = cmdp->next;
-				freefunc(cmdp->param.func);
-				ckfree(cmdp);
+				freefunc(psh, cmdp->param.func);
+				ckfree(psh, cmdp);
 			} else {
 				pp = &cmdp->next;
 			}
@@ -951,7 +1009,7 @@ cmdlookup(shinstance *psh, const char *name, int add)
 	}
 	if (add && cmdp == NULL) {
 		INTOFF;
-		cmdp = *pp = ckmalloc(sizeof (struct tblentry) - ARB
+		cmdp = *pp = ckmalloc(psh, sizeof (struct tblentry) - ARB
 					+ strlen(name) + 1);
 		cmdp->next = NULL;
 		cmdp->cmdtype = CMDUNKNOWN;
@@ -975,7 +1033,7 @@ delete_cmd_entry(shinstance *psh)
 	INTOFF;
 	cmdp = *lastcmdentry;
 	*lastcmdentry = cmdp->next;
-	ckfree(cmdp);
+	ckfree(psh, cmdp);
 	INTON;
 }
 
@@ -1012,7 +1070,7 @@ addcmdentry(shinstance *psh, char *name, struct cmdentry *entry)
 	cmdp = cmdlookup(psh, name, 1);
 	if (cmdp->cmdtype != CMDSPLBLTIN) {
 		if (cmdp->cmdtype == CMDFUNCTION) {
-			freefunc(cmdp->param.func);
+			freefunc(psh, cmdp->param.func);
 		}
 		cmdp->cmdtype = entry->cmdtype;
 		cmdp->param = entry->u;
@@ -1026,13 +1084,13 @@ addcmdentry(shinstance *psh, char *name, struct cmdentry *entry)
  */
 
 void
-defun(shinstance *psh,char *name, union node *func)
+defun(shinstance *psh, char *name, union node *func)
 {
 	struct cmdentry entry;
 
 	INTOFF;
 	entry.cmdtype = CMDFUNCTION;
-	entry.u.func = copyfunc(func);
+	entry.u.func = copyfunc(psh, func);
 	addcmdentry(psh, name, &entry);
 	INTON;
 }
@@ -1049,7 +1107,7 @@ unsetfunc(shinstance *psh, char *name)
 
 	if ((cmdp = cmdlookup(psh, name, 0)) != NULL &&
 	    cmdp->cmdtype == CMDFUNCTION) {
-		freefunc(cmdp->param.func);
+		freefunc(psh, cmdp->param.func);
 		delete_cmd_entry(psh);
 		return (0);
 	}
@@ -1141,7 +1199,7 @@ typecmd(shinstance *psh, int argc, char **argv)
 				} else {
 					if (!v_flag)
 						out1fmt(psh, ": %s\n",
-						    strerror(errno));
+						    sh_strerror(psh, errno));
 					else
 						err = 126;
 				}

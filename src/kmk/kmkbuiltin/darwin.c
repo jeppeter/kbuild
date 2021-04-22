@@ -1,10 +1,10 @@
-/* $Id: darwin.c 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * Missing BSD functions on Darwin / Mac OS X.
  */
 
 /*
- * Copyright (c) 2006-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2006-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *
@@ -28,6 +28,7 @@
 *******************************************************************************/
 #include "config.h"
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 

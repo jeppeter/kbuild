@@ -1,7 +1,5 @@
 /* Miscellaneous generic support functions for GNU Make.
-Copyright (C) 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997,
-1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007 Free Software
-Foundation, Inc.
+Copyright (C) 1988-2016 Free Software Foundation, Inc.
 This file is part of GNU Make.
 
 GNU Make is free software; you can redistribute it and/or modify it under the
@@ -16,9 +14,21 @@ A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#include "make.h"
+#include "makeint.h"
+#include "filedef.h"
 #include "dep.h"
 #include "debug.h"
+
+/* GNU make no longer supports pre-ANSI89 environments.  */
+
+#include <stdarg.h>
+
+#ifdef HAVE_FCNTL_H
+# include <fcntl.h>
+#else
+# include <sys/file.h>
+#endif
+
 #if defined (CONFIG_WITH_VALUE_LENGTH) || defined (CONFIG_WITH_ALLOC_CACHES)
 # include <assert.h>
 #endif
@@ -30,7 +40,6 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #  include <malloc.h>
 # endif
 #endif
-
 #if defined (CONFIG_WITH_NANOTS) || defined (CONFIG_WITH_PRINT_TIME_SWITCH)
 # ifdef WINDOWS32
 #  include <Windows.h>
@@ -45,37 +54,6 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 # else
 #  define bcopy(src, dst, size)   memcpy ((dst), (src), (size))
 # endif
-#endif
-
-/* Variadic functions.  We go through contortions to allow proper function
-   prototypes for both ANSI and pre-ANSI C compilers, and also for those
-   which support stdarg.h vs. varargs.h, and finally those which have
-   vfprintf(), etc. and those who have _doprnt... or nothing.
-
-   This fancy stuff all came from GNU fileutils, except for the VA_PRINTF and
-   VA_END macros used here since we have multiple print functions.  */
-
-#if USE_VARIADIC
-# if HAVE_STDARG_H
-#  include <stdarg.h>
-#  define VA_START(args, lastarg) va_start(args, lastarg)
-# else
-#  include <varargs.h>
-#  define VA_START(args, lastarg) va_start(args)
-# endif
-# if HAVE_VPRINTF
-#  define VA_PRINTF(fp, lastarg, args) vfprintf((fp), (lastarg), (args))
-# else
-#  define VA_PRINTF(fp, lastarg, args) _doprnt((lastarg), (args), (fp))
-# endif
-# define VA_END(args) va_end(args)
-#else
-/* We can't use any variadic interface! */
-# define va_alist a1, a2, a3, a4, a5, a6, a7, a8
-# define va_dcl char *a1, *a2, *a3, *a4, *a5, *a6, *a7, *a8;
-# define VA_START(args, lastarg)
-# define VA_PRINTF(fp, lastarg, args) fprintf((fp), (lastarg), va_alist)
-# define VA_END(args)
 #endif
 
 
@@ -106,9 +84,7 @@ char *
 collapse_continuations (char *line, unsigned int linelen)
 #endif
 {
-  register char *in, *out, *p;
-  register int backslash;
-  register unsigned int bs_write;
+  char *in, *out, *p;
 
 #ifndef CONFIG_WITH_VALUE_LENGTH
   in = strchr (line, '\n');
@@ -141,60 +117,65 @@ collapse_continuations (char *line, unsigned int linelen)
   while (*in != '\0')
     {
       /* BS_WRITE gets the number of quoted backslashes at
-	 the end just before IN, and BACKSLASH gets nonzero
-	 if the next character is quoted.  */
-      backslash = 0;
-      bs_write = 0;
+         the end just before IN, and BACKSLASH gets nonzero
+         if the next character is quoted.  */
+      unsigned int backslash = 0;
+      unsigned int bs_write = 0;
       for (p = in - 1; p >= line && *p == '\\'; --p)
-	{
-	  if (backslash)
-	    ++bs_write;
-	  backslash = !backslash;
+        {
+          if (backslash)
+            ++bs_write;
+          backslash = !backslash;
 
-	  /* It should be impossible to go back this far without exiting,
-	     but if we do, we can't get the right answer.  */
-	  if (in == out - 1)
-	    abort ();
-	}
+          /* It should be impossible to go back this far without exiting,
+             but if we do, we can't get the right answer.  */
+          if (in == out - 1)
+            abort ();
+        }
 
       /* Output the appropriate number of backslashes.  */
       while (bs_write-- > 0)
-	*out++ = '\\';
+        *out++ = '\\';
 
       /* Skip the newline.  */
       ++in;
 
-      /* If the newline is quoted, discard following whitespace
-	 and any preceding whitespace; leave just one space.  */
       if (backslash)
-	{
-	  in = next_token (in);
-	  while (out > line && isblank ((unsigned char)out[-1]))
-	    --out;
-	  *out++ = ' ';
-	}
+        {
+          /* Backslash/newline handling:
+             In traditional GNU make all trailing whitespace, consecutive
+             backslash/newlines, and any leading non-newline whitespace on the
+             next line is reduced to a single space.
+             In POSIX, each backslash/newline and is replaced by a space.  */
+          while (ISBLANK (*in))
+            ++in;
+          if (! posix_pedantic)
+            while (out > line && ISBLANK (out[-1]))
+              --out;
+          *out++ = ' ';
+        }
       else
-	/* If the newline isn't quoted, put it in the output.  */
-	*out++ = '\n';
+        /* If the newline isn't quoted, put it in the output.  */
+        *out++ = '\n';
 
       /* Now copy the following line to the output.
-	 Stop when we find backslashes followed by a newline.  */
+         Stop when we find backslashes followed by a newline.  */
       while (*in != '\0')
-	if (*in == '\\')
-	  {
-	    p = in + 1;
-	    while (*p == '\\')
-	      ++p;
-	    if (*p == '\n')
-	      {
-		in = p;
-		break;
-	      }
-	    while (in < p)
-	      *out++ = *in++;
-	  }
-	else
-	  *out++ = *in++;
+        if (*in == '\\')
+          {
+            p = in + 1;
+            while (*p == '\\')
+              ++p;
+            if (*p == '\n')
+              {
+                in = p;
+                break;
+              }
+            while (in < p)
+              *out++ = *in++;
+          }
+        else
+          *out++ = *in++;
     }
 
   *out = '\0';
@@ -214,142 +195,55 @@ print_spaces (unsigned int n)
 }
 
 
-/* Return a string whose contents concatenate those of s1, s2, s3.
+/* Return a string whose contents concatenate the NUM strings provided
    This string lives in static, re-used memory.  */
 
-char *
-concat (const char *s1, const char *s2, const char *s3)
+const char *
+concat (unsigned int num, ...)
 {
-  unsigned int len1, len2, len3;
   static unsigned int rlen = 0;
   static char *result = NULL;
+  unsigned int ri = 0;
+  va_list args;
 
-  len1 = (s1 && *s1 != '\0') ? strlen (s1) : 0;
-  len2 = (s2 && *s2 != '\0') ? strlen (s2) : 0;
-  len3 = (s3 && *s3 != '\0') ? strlen (s3) : 0;
+  va_start (args, num);
 
-  if (len1 + len2 + len3 + 1 > rlen)
-    result = xrealloc (result, (rlen = len1 + len2 + len3 + 10));
+  while (num-- > 0)
+    {
+      const char *s = va_arg (args, const char *);
+      unsigned int l = xstrlen (s);
 
-  if (len1)
-    memcpy (result, s1, len1);
-  if (len2)
-    memcpy (result + len1, s2, len2);
-  if (len3)
-    memcpy (result + len1 + len2, s3, len3);
+      if (l == 0)
+        continue;
 
-  result[len1+len2+len3] = '\0';
+      if (ri + l > rlen)
+        {
+          rlen = ((rlen ? rlen : 60) + l) * 2;
+          result = xrealloc (result, rlen);
+        }
+
+      memcpy (result + ri, s, l);
+      ri += l;
+    }
+
+  va_end (args);
+
+  /* Get some more memory if we don't have enough space for the
+     terminating '\0'.   */
+  if (ri == rlen)
+    {
+      rlen = (rlen ? rlen : 60) * 2;
+      result = xrealloc (result, rlen);
+    }
+
+  result[ri] = '\0';
 
   return result;
 }
 
-/* Print a message on stdout.  */
-
-void
-#if HAVE_ANSI_COMPILER && USE_VARIADIC && HAVE_STDARG_H
-message (int prefix, const char *fmt, ...)
-#else
-message (prefix, fmt, va_alist)
-     int prefix;
-     const char *fmt;
-     va_dcl
-#endif
-{
-#if USE_VARIADIC
-  va_list args;
-#endif
-
-  log_working_directory (1);
-
-  if (fmt != 0)
-    {
-      if (prefix)
-	{
-	  if (makelevel == 0)
-	    printf ("%s: ", program);
-	  else
-	    printf ("%s[%u]: ", program, makelevel);
-	}
-      VA_START (args, fmt);
-      VA_PRINTF (stdout, fmt, args);
-      VA_END (args);
-      putchar ('\n');
-    }
-
-  fflush (stdout);
-}
-
-/* Print an error message.  */
-
-void
-#if HAVE_ANSI_COMPILER && USE_VARIADIC && HAVE_STDARG_H
-error (const struct floc *flocp, const char *fmt, ...)
-#else
-error (flocp, fmt, va_alist)
-     const struct floc *flocp;
-     const char *fmt;
-     va_dcl
-#endif
-{
-#if USE_VARIADIC
-  va_list args;
-#endif
-
-  log_working_directory (1);
-
-  if (flocp && flocp->filenm)
-    fprintf (stderr, "%s:%lu: ", flocp->filenm, flocp->lineno);
-  else if (makelevel == 0)
-    fprintf (stderr, "%s: ", program);
-  else
-    fprintf (stderr, "%s[%u]: ", program, makelevel);
-
-  VA_START(args, fmt);
-  VA_PRINTF (stderr, fmt, args);
-  VA_END (args);
-
-  putc ('\n', stderr);
-  fflush (stderr);
-}
-
-/* Print an error message and exit.  */
-
-void
-#if HAVE_ANSI_COMPILER && USE_VARIADIC && HAVE_STDARG_H
-fatal (const struct floc *flocp, const char *fmt, ...)
-#else
-fatal (flocp, fmt, va_alist)
-     const struct floc *flocp;
-     const char *fmt;
-     va_dcl
-#endif
-{
-#if USE_VARIADIC
-  va_list args;
-#endif
-
-  log_working_directory (1);
-
-  if (flocp && flocp->filenm)
-    fprintf (stderr, "%s:%lu: *** ", flocp->filenm, flocp->lineno);
-  else if (makelevel == 0)
-    fprintf (stderr, "%s: *** ", program);
-  else
-    fprintf (stderr, "%s[%u]: *** ", program, makelevel);
-
-  VA_START(args, fmt);
-  VA_PRINTF (stderr, fmt, args);
-  VA_END (args);
-
-  fputs (_(".  Stop.\n"), stderr);
-
-  die (2);
-}
 
 #ifndef HAVE_STRERROR
-
-#undef	strerror
-
+#undef  strerror
 char *
 strerror (int errnum)
 {
@@ -366,24 +260,6 @@ strerror (int errnum)
   return buf;
 }
 #endif
-
-/* Print an error message from errno.  */
-
-void
-perror_with_name (const char *str, const char *name)
-{
-  error (NILF, _("%s%s: %s"), str, name, strerror (errno));
-}
-
-/* Print an error message from errno and exit.  */
-
-void
-pfatal_with_name (const char *name)
-{
-  fatal (NILF, _("%s: %s"), name, strerror (errno));
-
-  /* NOTREACHED */
-}
 
 /* Like malloc but get fatal error if memory is exhausted.  */
 /* Don't bother if we're using dmalloc; it provides these for us.  */
@@ -391,16 +267,36 @@ pfatal_with_name (const char *name)
 #if !defined(HAVE_DMALLOC_H) && !defined(ELECTRIC_HEAP) /* bird */
 
 #undef xmalloc
+#undef xcalloc
 #undef xrealloc
 #undef xstrdup
 
 void *
 xmalloc (unsigned int size)
 {
-  /* Make sure we don't allocate 0, for pre-ANSI libraries.  */
+  /* Make sure we don't allocate 0, for pre-ISO implementations.  */
   void *result = malloc (size ? size : 1);
   if (result == 0)
-    fatal (NILF, _("virtual memory exhausted"));
+    OUT_OF_MEM();
+
+#ifdef CONFIG_WITH_MAKE_STATS
+  make_stats_allocations++;
+  if (make_expensive_statistics)
+    make_stats_allocated += SIZE_OF_HEAP_BLOCK (result);
+  else
+    make_stats_allocated += size;
+#endif
+  return result;
+}
+
+
+void *
+xcalloc (unsigned int size)
+{
+  /* Make sure we don't allocate 0, for pre-ISO implementations.  */
+  void *result = calloc (size ? size : 1, 1);
+  if (result == 0)
+    OUT_OF_MEM();
 
 #ifdef CONFIG_WITH_MAKE_STATS
   make_stats_allocations++;
@@ -426,12 +322,12 @@ xrealloc (void *ptr, unsigned int size)
     make_stats_allocations++;
 #endif
 
-  /* Some older implementations of realloc() don't conform to ANSI.  */
+  /* Some older implementations of realloc() don't conform to ISO.  */
   if (! size)
     size = 1;
   result = ptr ? realloc (ptr, size) : malloc (size);
   if (result == 0)
-    fatal (NILF, _("virtual memory exhausted"));
+    OUT_OF_MEM();
 
 #ifdef CONFIG_WITH_MAKE_STATS
   if (make_expensive_statistics)
@@ -455,7 +351,7 @@ xstrdup (const char *ptr)
 #endif
 
   if (result == 0)
-    fatal (NILF, _("virtual memory exhausted"));
+    OUT_OF_MEM();
 
 #ifdef CONFIG_WITH_MAKE_STATS
   make_stats_allocations++;
@@ -474,13 +370,22 @@ xstrdup (const char *ptr)
 #endif  /* HAVE_DMALLOC_H */
 
 char *
-savestring (const char *str, unsigned int length)
+xstrndup (const char *str, unsigned int length)
 {
-  char *out = xmalloc (length + 1);
+  char *result;
+
+#if defined(HAVE_STRNDUP) && !defined(KMK)
+  result = strndup (str, length);
+  if (result == 0)
+    OUT_OF_MEM();
+#else
+  result = xmalloc (length + 1);
   if (length > 0)
-    memcpy (out, str, length);
-  out[length] = '\0';
-  return out;
+    strncpy (result, str, length);
+  result[length] = '\0';
+#endif
+
+  return result;
 }
 
 
@@ -509,7 +414,7 @@ lindex (const char *s, const char *limit, int c)
 char *
 end_of_token (const char *s)
 {
-#ifdef KMK
+#if 0 /* @todo def KMK */
     for (;;)
       {
         unsigned char ch0, ch1, ch2, ch3;
@@ -531,48 +436,17 @@ end_of_token (const char *s)
       }
 
 #else
-  while (*s != '\0' && !isblank ((unsigned char)*s))
-    ++s;
+  END_OF_TOKEN (s);
   return (char *)s;
 #endif
 }
-
-#ifdef WINDOWS32
-/*
- * Same as end_of_token, but take into account a stop character
- */
-char *
-end_of_token_w32 (const char *s, char stopchar)
-{
-  const char *p = s;
-  int backslash = 0;
-
-  while (*p != '\0' && *p != stopchar
-	 && (backslash || !isblank ((unsigned char)*p)))
-    {
-      if (*p++ == '\\')
-        {
-          backslash = !backslash;
-          while (*p == '\\')
-            {
-              backslash = !backslash;
-              ++p;
-            }
-        }
-      else
-        backslash = 0;
-    }
-
-  return (char *)p;
-}
-#endif
 
 /* Return the address of the first nonwhitespace or null in the string S.  */
 
 char *
 next_token (const char *s)
 {
-#ifdef KMK
+#if 0 /* @todo def KMK */
   for (;;)
     {
       unsigned char ch0, ch1, ch2, ch3;
@@ -594,8 +468,7 @@ next_token (const char *s)
     }
 
 #else  /* !KMK */
-  while (isblank ((unsigned char)*s))
-    ++s;
+  NEXT_TOKEN (s);
   return (char *)s;
 #endif /* !KMK */
 }
@@ -719,37 +592,65 @@ find_next_token (const char **ptr, unsigned int *lengthptr)
   return (char *)p;
 #endif
 }
+#ifdef KMK
+
+/* Same as find_next_token with two exception:
+      - The string ends at EOS or '\0'.
+      - We keep track of $() and ${}, allowing functions to be used. */
+
+char *
+find_next_token_eos (const char **ptr, const char *eos, unsigned int *lengthptr)
+{
+  const char *p = *ptr;
+  const char *e;
+  int level = 0;
+
+  /* skip blanks */
+  for (; p != eos; p++)
+    {
+      unsigned char ch = *p;
+      if (!MY_IS_BLANK(ch))
+        {
+          if (!ch)
+            return NULL;
+          break;
+        }
+    }
+  if (p == eos)
+    return NULL;
+
+  /* skip ahead until EOS or blanks. */
+  for (e = p; e != eos; e++)
+    {
+      unsigned char ch = *e;
+      if (MY_IS_BLANK_OR_EOS(ch))
+        {
+          if (!ch || level == 0)
+            break;
+        }
+      else if (ch == '$')
+        {
+          if (&e[1] != eos && (e[1] == '(' || e[1] == '{'))
+            {
+              level++;
+              e++;
+            }
+        }
+      else if ((ch == ')' || ch == '}') &&  level > 0)
+        level--;
+    }
+
+  *ptr = e;
+  if (lengthptr != 0)
+    *lengthptr = e - p;
+
+  return (char *)p;
+}
+
+#endif /* KMK */
 
 
-/* Allocate a new `struct dep' with all fields initialized to 0.   */
-
-struct dep *
-alloc_dep ()
-{
-#ifndef CONFIG_WITH_ALLOC_CACHES
-  struct dep *d = xmalloc (sizeof (struct dep));
-  memset (d, '\0', sizeof (struct dep));
-  return d;
-#else
-  return (struct dep *) alloccache_calloc (&dep_cache);
-#endif
-}
-
-
-/* Free `struct dep' along with `name' and `stem'.   */
-
-void
-free_dep (struct dep *d)
-{
-#ifndef CONFIG_WITH_ALLOC_CACHES
-  free (d);
-#else
-  alloccache_free (&dep_cache, d);
-#endif
-}
-
-/* Copy a chain of `struct dep', making a new chain
-   with the same contents as the old one.  */
+/* Copy a chain of 'struct dep'.  For 2nd expansion deps, dup the name.  */
 
 struct dep *
 copy_dep_chain (const struct dep *d)
@@ -762,37 +663,24 @@ copy_dep_chain (const struct dep *d)
 #ifndef CONFIG_WITH_ALLOC_CACHES
       struct dep *c = xmalloc (sizeof (struct dep));
 #else
-      struct dep *c = (struct dep *) alloccache_alloc (&dep_cache);
+      struct dep *c = alloccache_alloc(&dep_cache);
 #endif
       memcpy (c, d, sizeof (struct dep));
 
+      /** @todo KMK: Check if we need this duplication! */
+      if (c->need_2nd_expansion)
+        c->name = xstrdup (c->name);
+
       c->next = 0;
       if (firstnew == 0)
-	firstnew = lastnew = c;
+        firstnew = lastnew = c;
       else
-	lastnew = lastnew->next = c;
+        lastnew = lastnew->next = c;
 
       d = d->next;
     }
 
   return firstnew;
-}
-
-/* Free a chain of 'struct dep'.  */
-
-void
-free_dep_chain (struct dep *d)
-{
-  while (d != 0)
-    {
-      struct dep *df = d;
-      d = d->next;
-#ifndef CONFIG_WITH_ALLOC_CACHES
-      free_dep (df);
-#else
-      alloccache_free (&dep_cache, df);
-#endif
-    }
 }
 
 /* Free a chain of struct nameseq.
@@ -806,16 +694,42 @@ free_ns_chain (struct nameseq *ns)
       struct nameseq *t = ns;
       ns = ns->next;
 #ifndef CONFIG_WITH_ALLOC_CACHES
-      free (t);
+      free_ns (t);
 #else
       alloccache_free (&nameseq_cache, t);
 #endif
     }
 }
+
+
+#ifdef CONFIG_WITH_ALLOC_CACHES
+
+void
+free_dep_chain (struct dep *d)
+{
+  while (d != 0)
+    {
+      struct dep *tofree = d;
+      d = d->next;
+      alloccache_free (&dep_cache, tofree);
+    }
+}
+
+void
+free_goal_chain (struct goaldep *g)
+{
+  while (g != 0)
+    {
+      struct goaldep *tofree = g;
+      g = g->next;
+      alloccache_free (&dep_cache, tofree);
+    }
+}
+
+#endif /* CONFIG_WITH_ALLOC_CACHES */
 
 
 #if !HAVE_STRCASECMP && !HAVE_STRICMP && !HAVE_STRCMPI
-
 /* If we don't have strcasecmp() (from POSIX), or anything that can substitute
    for it, define our own version.  */
 
@@ -839,8 +753,35 @@ strcasecmp (const char *s1, const char *s2)
     }
 }
 #endif
+
+#if !HAVE_STRNCASECMP && !HAVE_STRNICMP && !HAVE_STRNCMPI
+/* If we don't have strncasecmp() (from POSIX), or anything that can
+   substitute for it, define our own version.  */
+
+int
+strncasecmp (const char *s1, const char *s2, int n)
+{
+  while (n-- > 0)
+    {
+      int c1 = (int) *(s1++);
+      int c2 = (int) *(s2++);
+
+      if (isalpha (c1))
+        c1 = tolower (c1);
+      if (isalpha (c2))
+        c2 = tolower (c2);
+
+      if (c1 != '\0' && c1 == c2)
+        continue;
+
+      return (c1 - c2);
+    }
+
+  return 0;
+}
+#endif
 
-#ifdef	GETLOADAVG_PRIVILEGED
+#ifdef  GETLOADAVG_PRIVILEGED
 
 #ifdef POSIX
 
@@ -853,7 +794,7 @@ strcasecmp (const char *s1, const char *s2)
 #undef HAVE_SETREUID
 #undef HAVE_SETREGID
 
-#else	/* Not POSIX.  */
+#else   /* Not POSIX.  */
 
 /* Some POSIX.1 systems have the seteuid and setegid functions.  In a
    POSIX-like system, they are the best thing to use.  However, some
@@ -863,30 +804,30 @@ strcasecmp (const char *s1, const char *s2)
 #undef HAVE_SETEUID
 #undef HAVE_SETEGID
 
-#endif	/* POSIX.  */
+#endif  /* POSIX.  */
 
-#ifndef	HAVE_UNISTD_H
+#ifndef HAVE_UNISTD_H
 extern int getuid (), getgid (), geteuid (), getegid ();
 extern int setuid (), setgid ();
 #ifdef HAVE_SETEUID
 extern int seteuid ();
 #else
-#ifdef	HAVE_SETREUID
+#ifdef  HAVE_SETREUID
 extern int setreuid ();
-#endif	/* Have setreuid.  */
-#endif	/* Have seteuid.  */
+#endif  /* Have setreuid.  */
+#endif  /* Have seteuid.  */
 #ifdef HAVE_SETEGID
 extern int setegid ();
 #else
-#ifdef	HAVE_SETREGID
+#ifdef  HAVE_SETREGID
 extern int setregid ();
-#endif	/* Have setregid.  */
-#endif	/* Have setegid.  */
-#endif	/* No <unistd.h>.  */
+#endif  /* Have setregid.  */
+#endif  /* Have setegid.  */
+#endif  /* No <unistd.h>.  */
 
 /* Keep track of the user and group IDs for user- and make- access.  */
 static int user_uid = -1, user_gid = -1, make_uid = -1, make_gid = -1;
-#define	access_inited	(user_uid != -1)
+#define access_inited   (user_uid != -1)
 static enum { make, user } current_access;
 
 
@@ -903,7 +844,7 @@ log_access (const char *flavor)
      run in a child fork whose stdout is piped.  */
 
   fprintf (stderr, _("%s: user %lu (real %lu), group %lu (real %lu)\n"),
-	   flavor, (unsigned long) geteuid (), (unsigned long) getuid (),
+           flavor, (unsigned long) geteuid (), (unsigned long) getuid (),
            (unsigned long) getegid (), (unsigned long) getgid ());
   fflush (stderr);
 }
@@ -929,14 +870,14 @@ init_access (void)
 #endif
 }
 
-#endif	/* GETLOADAVG_PRIVILEGED */
+#endif  /* GETLOADAVG_PRIVILEGED */
 
 /* Give the process appropriate permissions for access to
    user data (i.e., to stat files, or to spawn a child process).  */
 void
 user_access (void)
 {
-#ifdef	GETLOADAVG_PRIVILEGED
+#ifdef  GETLOADAVG_PRIVILEGED
 
   if (!access_inited)
     init_access ();
@@ -949,7 +890,7 @@ user_access (void)
      We now want to set the effective user and group IDs to the real IDs,
      which are the IDs of the process that exec'd make.  */
 
-#ifdef	HAVE_SETEUID
+#ifdef  HAVE_SETEUID
 
   /* Modern systems have the seteuid/setegid calls which set only the
      effective IDs, which is ideal.  */
@@ -957,9 +898,9 @@ user_access (void)
   if (seteuid (user_uid) < 0)
     pfatal_with_name ("user_access: seteuid");
 
-#else	/* Not HAVE_SETEUID.  */
+#else   /* Not HAVE_SETEUID.  */
 
-#ifndef	HAVE_SETREUID
+#ifndef HAVE_SETREUID
 
   /* System V has only the setuid/setgid calls to set user/group IDs.
      There is an effective ID, which can be set by setuid/setgid.
@@ -972,7 +913,7 @@ user_access (void)
   if (setuid (user_uid) < 0)
     pfatal_with_name ("user_access: setuid");
 
-#else	/* HAVE_SETREUID.  */
+#else   /* HAVE_SETREUID.  */
 
   /* In 4BSD, the setreuid/setregid calls set both the real and effective IDs.
      They may be set to themselves or each other.  So you have two alternatives
@@ -984,14 +925,14 @@ user_access (void)
   if (setreuid (make_uid, user_uid) < 0)
     pfatal_with_name ("user_access: setreuid");
 
-#endif	/* Not HAVE_SETREUID.  */
-#endif	/* HAVE_SETEUID.  */
+#endif  /* Not HAVE_SETREUID.  */
+#endif  /* HAVE_SETEUID.  */
 
-#ifdef	HAVE_SETEGID
+#ifdef  HAVE_SETEGID
   if (setegid (user_gid) < 0)
     pfatal_with_name ("user_access: setegid");
 #else
-#ifndef	HAVE_SETREGID
+#ifndef HAVE_SETREGID
   if (setgid (user_gid) < 0)
     pfatal_with_name ("user_access: setgid");
 #else
@@ -1004,7 +945,7 @@ user_access (void)
 
   log_access (_("User access"));
 
-#endif	/* GETLOADAVG_PRIVILEGED */
+#endif  /* GETLOADAVG_PRIVILEGED */
 }
 
 /* Give the process appropriate permissions for access to
@@ -1012,7 +953,7 @@ user_access (void)
 void
 make_access (void)
 {
-#ifdef	GETLOADAVG_PRIVILEGED
+#ifdef  GETLOADAVG_PRIVILEGED
 
   if (!access_inited)
     init_access ();
@@ -1022,11 +963,11 @@ make_access (void)
 
   /* See comments in user_access, above.  */
 
-#ifdef	HAVE_SETEUID
+#ifdef  HAVE_SETEUID
   if (seteuid (make_uid) < 0)
     pfatal_with_name ("make_access: seteuid");
 #else
-#ifndef	HAVE_SETREUID
+#ifndef HAVE_SETREUID
   if (setuid (make_uid) < 0)
     pfatal_with_name ("make_access: setuid");
 #else
@@ -1035,11 +976,11 @@ make_access (void)
 #endif
 #endif
 
-#ifdef	HAVE_SETEGID
+#ifdef  HAVE_SETEGID
   if (setegid (make_gid) < 0)
     pfatal_with_name ("make_access: setegid");
 #else
-#ifndef	HAVE_SETREGID
+#ifndef HAVE_SETREGID
   if (setgid (make_gid) < 0)
     pfatal_with_name ("make_access: setgid");
 #else
@@ -1052,7 +993,7 @@ make_access (void)
 
   log_access (_("Make access"));
 
-#endif	/* GETLOADAVG_PRIVILEGED */
+#endif  /* GETLOADAVG_PRIVILEGED */
 }
 
 /* Give the process appropriate permissions for a child process.
@@ -1060,7 +1001,7 @@ make_access (void)
 void
 child_access (void)
 {
-#ifdef	GETLOADAVG_PRIVILEGED
+#ifdef  GETLOADAVG_PRIVILEGED
 
   if (!access_inited)
     abort ();
@@ -1068,7 +1009,7 @@ child_access (void)
   /* Set both the real and effective UID and GID to the user's.
      They cannot be changed back to make's.  */
 
-#ifndef	HAVE_SETREUID
+#ifndef HAVE_SETREUID
   if (setuid (user_uid) < 0)
     pfatal_with_name ("child_access: setuid");
 #else
@@ -1076,7 +1017,7 @@ child_access (void)
     pfatal_with_name ("child_access: setreuid");
 #endif
 
-#ifndef	HAVE_SETREGID
+#ifndef HAVE_SETREGID
   if (setgid (user_gid) < 0)
     pfatal_with_name ("child_access: setgid");
 #else
@@ -1086,9 +1027,9 @@ child_access (void)
 
   log_access (_("Child access"));
 
-#endif	/* GETLOADAVG_PRIVILEGED */
+#endif  /* GETLOADAVG_PRIVILEGED */
 }
-
+
 #ifdef NEED_GET_PATH_MAX
 unsigned int
 get_path_max (void)
@@ -1099,61 +1040,14 @@ get_path_max (void)
     {
       long int x = pathconf ("/", _PC_PATH_MAX);
       if (x > 0)
-	value = x;
+        value = x;
       else
-	return MAXPATHLEN;
+        return MAXPATHLEN;
     }
 
   return value;
 }
 #endif
-
-
-/* This code is stolen from gnulib.
-   If/when we abandon the requirement to work with K&R compilers, we can
-   remove this (and perhaps other parts of GNU make!) and migrate to using
-   gnulib directly.
-
-   This is called only through atexit(), which means die() has already been
-   invoked.  So, call exit() here directly.  Apparently that works...?
-*/
-
-/* Close standard output, exiting with status 'exit_failure' on failure.
-   If a program writes *anything* to stdout, that program should close
-   stdout and make sure that it succeeds before exiting.  Otherwise,
-   suppose that you go to the extreme of checking the return status
-   of every function that does an explicit write to stdout.  The last
-   printf can succeed in writing to the internal stream buffer, and yet
-   the fclose(stdout) could still fail (due e.g., to a disk full error)
-   when it tries to write out that buffered data.  Thus, you would be
-   left with an incomplete output file and the offending program would
-   exit successfully.  Even calling fflush is not always sufficient,
-   since some file systems (NFS and CODA) buffer written/flushed data
-   until an actual close call.
-
-   Besides, it's wasteful to check the return value from every call
-   that writes to stdout -- just let the internal stream state record
-   the failure.  That's what the ferror test is checking below.
-
-   It's important to detect such failures and exit nonzero because many
-   tools (most notably `make' and other build-management systems) depend
-   on being able to detect failure in other tools via their exit status.  */
-
-void
-close_stdout (void)
-{
-  int prev_fail = ferror (stdout);
-  int fclose_fail = fclose (stdout);
-
-  if (prev_fail || fclose_fail)
-    {
-      if (fclose_fail)
-        error (NILF, _("write error: %s"), strerror (errno));
-      else
-        error (NILF, _("write error"));
-      exit (EXIT_FAILURE);
-    }
-}
 
 #ifdef CONFIG_WITH_PRINT_STATS_SWITCH
 /* Print heap statistics if supported by the platform. */
@@ -1165,12 +1059,14 @@ print_heap_stats (void)
   malloc_statistics_t s;
 
   malloc_zone_statistics (NULL, &s);
-  printf (_("\n# CRT Heap: %zu bytes in use, in %u blocks, avg %zu bytes/block\n"),
-          s.size_in_use, s.blocks_in_use, s.size_in_use / s.blocks_in_use);
-  printf (_("#           %zu bytes max in use (high water mark)\n"),
-          s.max_size_in_use);
-  printf (_("#           %zu bytes reserved,  %zu bytes free (estimate)\n"),
-          s.size_allocated, s.size_allocated - s.size_in_use);
+  printf (_("\n# CRT Heap: %u bytes in use, in %u blocks, avg %u bytes/block\n"),
+          (unsigned)s.size_in_use, (unsigned)s.blocks_in_use,
+          s.blocks_in_use ? (unsigned)(s.size_in_use / s.blocks_in_use) : 0);
+  printf (_("#           %u bytes max in use (high water mark)\n"),
+          (unsigned)s.max_size_in_use);
+  printf (_("#           %u bytes reserved,  %u bytes free (estimate)\n"),
+          (unsigned)s.size_allocated,
+          (unsigned)(s.size_allocated - s.size_in_use));
 # endif /* __APPLE__ */
 
   /* MSC / Windows  */
@@ -1197,9 +1093,9 @@ print_heap_stats (void)
     }
 
   printf (_("\n# CRT Heap: %u bytes in use, in %u blocks, avg %u bytes/block\n"),
-          bytes_used, blocks_used, bytes_used / blocks_used);
+          bytes_used, blocks_used, blocks_used ? bytes_used / blocks_used : 0);
   printf (_("#           %u bytes avail, in %u blocks, avg %u bytes/block\n"),
-          bytes_avail, blocks_avail, bytes_avail / blocks_avail);
+          bytes_avail, blocks_avail, blocks_avail ? bytes_avail / blocks_avail : 0);
 # endif /* _MSC_VER */
 
   /* Darwin Libc sources indicates that something like this may be
@@ -1245,7 +1141,7 @@ print_heap_stats (void)
 }
 #endif /* CONFIG_WITH_PRINT_STATS_SWITCH */
 
-#ifdef CONFIG_WITH_PRINT_TIME_SWITCH
+#if defined(CONFIG_WITH_PRINT_TIME_SWITCH) || defined(CONFIG_WITH_KMK_BUILTIN_STATS)
 /* Get a nanosecond timestamp, from a monotonic time source if
    possible.  Returns -1 after calling error() on failure.  */
 
@@ -1288,7 +1184,7 @@ nano_timestamp (void)
        + tv.tv_usec * 1000;
   else
     {
-      error (NILF, _("gettimeofday failed"));
+      O (error, NILF, _("gettimeofday failed"));
       ts = -1;
     }
 
@@ -1305,7 +1201,7 @@ nano_timestamp (void)
 int
 format_elapsed_nano (char *buf, size_t size, big_int ts)
 {
-  int sz;
+  unsigned sz;
   if (ts < 1000)
     sz = sprintf (buf, "%uns", (unsigned)ts);
   else if (ts < 100000)
@@ -1338,8 +1234,9 @@ format_elapsed_nano (char *buf, size_t size, big_int ts)
         }
     }
   if (sz >= size)
-    fatal (NILF, _("format_elapsed_nano buffer overflow: %d written, %d buffer"),
-           sz, size);
+    ONN (fatal, NILF, _("format_elapsed_nano buffer overflow: %u written, %lu buffer"),
+         sz, (unsigned long)size);
   return sz;
 }
-#endif /* CONFIG_WITH_PRINT_TIME_SWITCH */
+#endif /* CONFIG_WITH_PRINT_TIME_SWITCH || defined(CONFIG_WITH_KMK_BUILTIN_STATS) */
+

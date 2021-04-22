@@ -116,7 +116,7 @@ redirect(shinstance *psh, union node *redir, int flags)
 		/* We don't have to worry about REDIR_VFORK here, as
 		 * flags & REDIR_PUSH is never true if REDIR_VFORK is set.
 		 */
-		sv = ckmalloc(sizeof (struct redirtab));
+		sv = ckmalloc(psh, sizeof (struct redirtab));
 		for (i = 0 ; i < 10 ; i++)
 			sv->renamed[i] = EMPTY;
 		sv->next = psh->redirlist;
@@ -143,7 +143,7 @@ again:
 					/* FALLTHROUGH*/
 				default:
 					INTON;
-					error(psh, "%d: %s", fd, strerror(errno));
+					error(psh, "%d: %s", fd, sh_strerror(psh, errno));
 					/* NOTREACHED */
 				}
 			}
@@ -232,8 +232,7 @@ openredirect(shinstance *psh, union node *redir, char memory[10], int flags)
 	}
 
 	if (f != fd) {
-		copyfd(psh, f, fd);
-		shfile_close(&psh->fdtab, f);
+		movefd(psh, f, fd);
 	}
 	INTON;
 	return;
@@ -301,16 +300,16 @@ popredir(shinstance *psh)
 		if (rp->renamed[i] != EMPTY) {
                         if (i == 0)
                                 psh->fd0_redirected--;
-			shfile_close(&psh->fdtab, i);
 			if (rp->renamed[i] >= 0) {
-				copyfd(psh, rp->renamed[i], i);
-				shfile_close(&psh->fdtab, rp->renamed[i]);
+				movefd(psh, rp->renamed[i], i);
+			} else {
+				shfile_close(&psh->fdtab, i);
 			}
 		}
 	}
 	INTOFF;
 	psh->redirlist = rp->next;
-	ckfree(rp);
+	ckfree(psh, rp);
 	INTON;
 }
 
@@ -377,8 +376,50 @@ copyfd(shinstance *psh, int from, int to)
 	if (newfd < 0) {
 		if (errno == EMFILE)
 			return EMPTY;
-		else
-			error(psh, "%d: %s", from, strerror(errno));
+		error(psh, "%d: %s", from, sh_strerror(psh, errno));
 	}
 	return newfd;
 }
+
+
+/*
+ * Move a file descriptor to be == to.  Returns -1
+ * if the source file descriptor is closed, EMPTY if there are no unused
+ * file descriptors left.
+ */
+
+int
+movefd(shinstance *psh, int from, int to)
+{
+	int newfd;
+
+	newfd = shfile_movefd(&psh->fdtab, from, to);
+	if (newfd < 0) {
+		if (errno == EMFILE)
+			return EMPTY;
+		error(psh, "%d: %s", from, sh_strerror(psh, errno));
+	}
+	return newfd;
+}
+
+
+/*
+ * Move a file descriptor to be >= to.  Returns -1
+ * if the source file descriptor is closed, EMPTY if there are no unused
+ * file descriptors left.
+ */
+
+int
+movefd_above(shinstance *psh, int from, int to)
+{
+	int newfd;
+
+	newfd = shfile_movefd_above(&psh->fdtab, from, to);
+	if (newfd < 0) {
+		if (errno == EMFILE)
+			return EMPTY;
+		error(psh, "%d: %s", from, sh_strerror(psh, errno));
+	}
+	return newfd;
+}
+

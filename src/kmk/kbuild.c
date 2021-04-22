@@ -1,10 +1,10 @@
-/* $Id: kbuild.c 2248 2009-01-19 04:34:56Z bird $ */
+/* $Id$ */
 /** @file
  * kBuild specific make functionality.
  */
 
 /*
- * Copyright (c) 2006-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2006-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *
@@ -28,7 +28,8 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include "make.h"
+#define NO_MEMCOPY_HACK
+#include "makeint.h"
 #include "filedef.h"
 #include "variable.h"
 #include "dep.h"
@@ -46,6 +47,7 @@
 #endif
 
 #include "kbuild.h"
+#include "k/kDefs.h"
 
 #include <assert.h>
 
@@ -64,14 +66,14 @@
         else \
             switch (len) \
             { \
-                case 8: dst[7] = src[7]; \
-                case 7: dst[6] = src[6]; \
-                case 6: dst[5] = src[5]; \
-                case 5: dst[4] = src[4]; \
-                case 4: dst[3] = src[3]; \
-                case 3: dst[2] = src[2]; \
-                case 2: dst[1] = src[1]; \
-                case 1: dst[0] = src[0]; \
+                case 8: dst[7] = src[7]; /* fall thru */ \
+                case 7: dst[6] = src[6]; /* fall thru */ \
+                case 6: dst[5] = src[5]; /* fall thru */ \
+                case 5: dst[4] = src[4]; /* fall thru */ \
+                case 4: dst[3] = src[3]; /* fall thru */ \
+                case 3: dst[2] = src[2]; /* fall thru */ \
+                case 2: dst[1] = src[1]; /* fall thru */ \
+                case 1: dst[0] = src[0]; /* fall thru */ \
                 case 0: break; \
             } \
     } while (0)
@@ -113,7 +115,7 @@ void init_kbuild(int argc, char **argv)
 #endif
         g_pszInitialCwd = xstrdup(szTmp);
     else
-        fatal(NILF, _("getcwd failed"));
+        O(fatal, NILF, _("getcwd failed"));
 
     /*
      * Determin the executable name.
@@ -154,7 +156,7 @@ void init_kbuild(int argc, char **argv)
                     memcpy(szTmp, pszImageName, cchImageName + 1);
                     rc = 0;
                 }
-            }    
+            }
 
         }
 # endif
@@ -279,7 +281,7 @@ const char *get_kbuild_path(void)
                 char *pszTmp2 = alloca(cch + sizeof("/../.."));
                 strcat(strcpy(pszTmp2, get_kbuild_bin_path()), "/../..");
                 if (!my_abspath(pszTmp2, szTmpPath))
-                    fatal(NILF, _("failed to determin KBUILD_PATH"));
+                    O(fatal, NILF, _("failed to determin KBUILD_PATH"));
 #endif
             }
         }
@@ -329,7 +331,7 @@ const char *get_kbuild_bin_path(void)
                   strcpy(pszTmp2, ".");
 
                 if (!my_abspath(pszTmp2, szTmpPath))
-                    fatal(NILF, _("failed to determin KBUILD_BIN_PATH (pszTmp2=%s szTmpPath=%s)"), pszTmp2, szTmpPath);
+                    OSS(fatal, NILF, _("failed to determin KBUILD_BIN_PATH (pszTmp2=%s szTmpPath=%s)"), pszTmp2, szTmpPath);
 #endif /* !KBUILD_PATH */
             }
         }
@@ -382,6 +384,7 @@ kbuild_apply_defpath(struct variable *pDefPath, char **ppsz, unsigned int *pcch,
     const char *pszIterator;
     const char *pszInCur;
     unsigned int cchInCur;
+    unsigned int cchMaxRelative = 0;
     unsigned int cRelativePaths;
 
     /*
@@ -389,7 +392,7 @@ kbuild_apply_defpath(struct variable *pDefPath, char **ppsz, unsigned int *pcch,
      */
     cRelativePaths = 0;
     pszIterator = *ppsz;
-    while ((pszInCur = find_next_token(&pszIterator, &cchInCur)))
+    while ((pszInCur = find_next_token(&pszIterator, &cchInCur)) != NULL)
     {
         /* is relative? */
 #ifdef HAVE_DOS_PATHS
@@ -397,7 +400,11 @@ kbuild_apply_defpath(struct variable *pDefPath, char **ppsz, unsigned int *pcch,
 #else
         if (pszInCur[0] != '/')
 #endif
+        {
             cRelativePaths++;
+            if (cchInCur > cchMaxRelative)
+                cchMaxRelative = cchInCur;
+        }
     }
 
     /*
@@ -405,10 +412,28 @@ kbuild_apply_defpath(struct variable *pDefPath, char **ppsz, unsigned int *pcch,
      */
     if (cRelativePaths)
     {
-        const size_t cchOut = *pcch + cRelativePaths * (pDefPath->value_length + 1) + 1;
-        char *pszOut = xmalloc(cchOut);
-        char *pszOutCur = pszOut;
+        size_t const cchAbsPathBuf = MAX(GET_PATH_MAX, pDefPath->value_length + cchInCur + 1 + 16);
+        char *pszAbsPathOut = (char *)alloca(cchAbsPathBuf);
+        char *pszAbsPathIn  = (char *)alloca(cchAbsPathBuf);
+        size_t cchAbsDefPath;
+        size_t cchOut;
+        char *pszOut;
+        char *pszOutCur;
         const char *pszInNextCopy = *ppsz;
+
+        /* make defpath absolute and have a trailing slash first. */
+        if (abspath(pDefPath->value, pszAbsPathIn) == NULL)
+            memcpy(pszAbsPathIn, pDefPath->value, pDefPath->value_length);
+        cchAbsDefPath = strlen(pszAbsPathIn);
+#ifdef HAVE_DOS_PATHS
+        if (pszAbsPathIn[cchAbsDefPath - 1] != '/' && pszAbsPathIn[cchAbsDefPath - 1] != '\\')
+#else
+        if (pszAbsPathIn[cchAbsDefPath - 1] != '/')
+#endif
+            pszAbsPathIn[cchAbsDefPath++] = '/';
+
+        cchOut = *pcch + cRelativePaths * cchAbsDefPath + 1;
+        pszOutCur = pszOut = xmalloc(cchOut);
 
         cRelativePaths = 0;
         pszIterator = *ppsz;
@@ -421,38 +446,35 @@ kbuild_apply_defpath(struct variable *pDefPath, char **ppsz, unsigned int *pcch,
             if (pszInCur[0] != '/')
 #endif
             {
-                PATH_VAR(szAbsPathIn);
-                PATH_VAR(szAbsPathOut);
-
-                if (pDefPath->value_length + cchInCur + 1 >= GET_PATH_MAX)
-                    continue;
+                const char *pszToCopy;
+                size_t      cchToCopy;
 
                 /* Create the abspath input. */
-                memcpy(szAbsPathIn, pDefPath->value, pDefPath->value_length);
-                szAbsPathIn[pDefPath->value_length] = '/';
-                memcpy(&szAbsPathIn[pDefPath->value_length + 1], pszInCur, cchInCur);
-                szAbsPathIn[pDefPath->value_length + 1 + cchInCur] = '\0';
+                memcpy(&pszAbsPathIn[cchAbsDefPath], pszInCur, cchInCur);
+                pszAbsPathIn[cchAbsDefPath + cchInCur] = '\0';
 
-                if (abspath(szAbsPathIn, szAbsPathOut) != NULL)
+                pszToCopy = abspath(pszAbsPathIn, pszAbsPathOut);
+                if (!pszToCopy)
+                    pszToCopy = pszAbsPathIn;
+
+                /* copy leading input */
+                if (pszInCur != pszInNextCopy)
                 {
-                    const size_t cchAbsPathOut = strlen(szAbsPathOut);
-                    assert(cchAbsPathOut <= pDefPath->value_length + 1 + cchInCur);
-
-                    /* copy leading input */
-                    if (pszInCur != pszInNextCopy)
-                    {
-                        const size_t cchCopy = pszInCur - pszInNextCopy;
-                        memcpy(pszOutCur, pszInNextCopy, cchCopy);
-                        pszOutCur += cchCopy;
-                    }
-                    pszInNextCopy = pszInCur + cchInCur;
-
-                    /* copy out the abspath. */
-                    memcpy(pszOutCur, szAbsPathOut, cchAbsPathOut);
-                    pszOutCur += cchAbsPathOut;
+                    const size_t cchCopy = pszInCur - pszInNextCopy;
+                    memcpy(pszOutCur, pszInNextCopy, cchCopy);
+                    pszOutCur += cchCopy;
                 }
+                pszInNextCopy = pszInCur + cchInCur;
+
+                /* copy out the abspath. */
+                cchToCopy = strlen(pszToCopy);
+                assert(cchToCopy <= cchAbsDefPath + cchInCur);
+                memcpy(pszOutCur, pszToCopy, cchToCopy);
+                pszOutCur += cchToCopy;
             }
+            /* else: Copy absolute paths as bulk when we hit then next relative one or the end. */
         }
+
         /* the final copy (includes the nil). */
         cchInCur = *ppsz + *pcch - pszInNextCopy;
         memcpy(pszOutCur, pszInNextCopy, cchInCur);
@@ -483,9 +505,9 @@ kbuild_get_variable_n(const char *pszName, size_t cchName)
 {
     struct variable *pVar = lookup_variable(pszName, cchName);
     if (!pVar)
-        fatal(NILF, _("variable `%.*s' isn't defined!"), (int)cchName, pszName);
+        fatal(NILF, cchName, _("variable `%.*s' isn't defined!"), (int)cchName, pszName);
     if (pVar->recursive)
-        fatal(NILF, _("variable `%.*s' is defined as `recursive' instead of `simple'!"), (int)cchName, pszName);
+        fatal(NILF, cchName, _("variable `%.*s' is defined as `recursive' instead of `simple'!"), (int)cchName, pszName);
 
     MY_ASSERT_MSG(strlen(pVar->value) == pVar->value_length,
                   ("%u != %u %.*s\n", pVar->value_length, (unsigned int)strlen(pVar->value), (int)cchName, pVar->name));
@@ -505,7 +527,7 @@ kbuild_get_recursive_variable(const char *pszName)
 {
     struct variable *pVar = lookup_variable(pszName, strlen(pszName));
     if (!pVar)
-        fatal(NILF, _("variable `%s' isn't defined!"), pszName);
+        OS(fatal, NILF, _("variable `%s' isn't defined!"), pszName);
 
     MY_ASSERT_MSG(strlen(pVar->value) == pVar->value_length,
                   ("%u != %u %s\n", pVar->value_length, (unsigned int)strlen(pVar->value), pVar->name));
@@ -569,6 +591,7 @@ kbuild_simplify_variable(struct variable *pVar)
         pVar->value_alloc_len = value_len + 1;
     }
     pVar->recursive = 0;
+    VARIABLE_CHANGED(pVar);
     return pVar;
 }
 
@@ -590,8 +613,14 @@ kbuild_lookup_variable_n(const char *pszName, size_t cchName)
         MY_ASSERT_MSG(strlen(pVar->value) == pVar->value_length,
                       ("%u != %u %.*s\n", pVar->value_length, (unsigned int)strlen(pVar->value), (int)cchName, pVar->name));
 
-        /* Make sure the variable is simple, convert it if necessary. */
-        if (pVar->recursive)
+        /* Make sure the variable is simple, convert it if necessary.
+           Note! Must NOT do this for the dynamic INCS of sdks/ReorderCompilerIncs.kmk */
+        if (!pVar->recursive)
+        { /* likely */ }
+        else if (   cchName < sizeof("SDK_ReorderCompilerIncs_INCS.") - 1U
+                 || pszName[0] != 'S'
+                 || pszName[4] != 'R'
+                 || memcmp(pszName, "SDK_ReorderCompilerIncs_INCS.", sizeof("SDK_ReorderCompilerIncs_INCS.") - 1U) == 0)
             kbuild_simplify_variable(pVar);
     }
     return pVar;
@@ -950,9 +979,9 @@ kbuild_first_prop(struct variable *pTarget, struct variable *pSource,
         /* strip it */
         psz = pVar->value;
         pszEnd = psz + pVar->value_length;
-        while (isblank((unsigned char)*psz))
+        while (ISBLANK(*psz))
             psz++;
-        while (pszEnd > psz && isblank((unsigned char)pszEnd[-1]))
+        while (pszEnd > psz && ISBLANK(pszEnd[-1]))
             pszEnd--;
         if (pszEnd > psz)
         {
@@ -1005,7 +1034,7 @@ kbuild_get_source_tool(struct variable *pTarget, struct variable *pSource, struc
                                               "TOOL", sizeof("TOOL") - 1,
                                               pszVarName);
     if (!pVar)
-        fatal(NILF, _("no tool for source `%s' in target `%s'!"), pSource->value, pTarget->value);
+        OSS(fatal, NILF, _("no tool for source `%s' in target `%s'!"), pSource->value, pTarget->value);
     return pVar;
 }
 
@@ -1054,7 +1083,8 @@ kbuild_get_object_suffix(struct variable *pTarget, struct variable *pSource,
                                               "OBJSUFF",  sizeof("OBJSUFF")  - 1,
                                               pszVarName);
     if (!pVar)
-        fatal(NILF, _("no OBJSUFF attribute or SUFF_OBJ default for source `%s' in target `%s'!"), pSource->value, pTarget->value);
+        OSS(fatal, NILF, _("no OBJSUFF attribute or SUFF_OBJ default for source `%s' in target `%s'!"),
+            pSource->value, pTarget->value);
     return pVar;
 }
 
@@ -1105,9 +1135,8 @@ kbuild_get_object_base(struct variable *pTarget, struct variable *pSource, const
     size_t cch;
 
     /*
-     * Strip the source filename of any uncessary leading path and root specs.
+     * Strip the source filename of any unnecessary leading path and root specs.
      */
-    /* */
     if (    pSource->value_length > pPathTarget->value_length
         &&  !strncmp(pSource->value, pPathTarget->value, pPathTarget->value_length))
     {
@@ -1573,8 +1602,8 @@ kbuild_collect_source_prop(struct variable *pTarget, struct variable *pSource,
         if (pVar) \
         { \
             paVars[iVar].pVar = pVar; \
-            if (    !pVar->recursive \
-                ||  !memchr(pVar->value, '$', pVar->value_length)) \
+            if (   !pVar->recursive \
+                || IS_VARIABLE_RECURSIVE_WITHOUT_DOLLAR(pVar)) \
             { \
                 paVars[iVar].pszExp = pVar->value; \
                 paVars[iVar].cchExp = pVar->value_length; \
@@ -1811,11 +1840,11 @@ func_kbuild_source_prop(char *o, char **argv, const char *pszFuncName)
     else if (!strcmp(argv[2], "right-to-left"))
         iDirection = -1;
     else
-        fatal(NILF, _("incorrect direction argument `%s'!"), argv[2]);
+        OS(fatal, NILF, _("incorrect direction argument `%s'!"), argv[2]);
     if (argv[3])
     {
         const char *psz = argv[3];
-        while (isspace(*psz))
+        while (ISSPACE(*psz))
             psz++;
         if (*psz)
             pDefPath = kbuild_get_variable_n(ST("defpath"));
@@ -1889,7 +1918,7 @@ kbuild_set_object_name_and_dep_and_dirdep_and_PATH_target_source(struct variable
     {
         psz--;
         if (psz <= pszResult)
-            fatal(NULL, "whut!?! no path? result=`%s'", pszResult);
+            OS(fatal, NULL, "whut!?! no path? result=`%s'", pszResult);
 #ifdef HAVE_DOS_PATHS
         if (*psz == ':')
         {
@@ -1960,7 +1989,7 @@ dep     := $(obj)$(SUFF_DEP)
 char *
 func_kbuild_source_one(char *o, char **argv, const char *pszFuncName)
 {
-    static int s_fNoCompileCmdsDepsDefined = -1;
+    static int s_fNoCompileDepsDefined = -1;
     struct variable *pTarget    = kbuild_get_variable_n(ST("target"));
     struct variable *pSource    = kbuild_get_variable_n(ST("source"));
     struct variable *pDefPath   = kbuild_get_variable_n(ST("defpath"));
@@ -1972,9 +2001,12 @@ func_kbuild_source_one(char *o, char **argv, const char *pszFuncName)
     struct variable *pTool      = kbuild_get_source_tool(pTarget, pSource, pType, pBldTrg, pBldTrgArch, "tool");
     struct variable *pOutBase   = kbuild_get_object_base(pTarget, pSource, "outbase");
     struct variable *pObjSuff   = kbuild_get_object_suffix(pTarget, pSource, pTool, pType, pBldTrg, pBldTrgArch, "objsuff");
-    struct variable *pDefs, *pIncs, *pFlags, *pDeps, *pOrderDeps, *pDirDep, *pDep, *pVar, *pOutput, *pOutputMaybe;
+    struct variable *pDeps, *pOrderDeps, *pDirDep, *pDep, *pVar, *pOutput, *pOutputMaybe;
+#if 0 /* not used */
+    struct variable *pDefs, *pIncs, *pFlags;
+#endif
     struct variable *pObj       = kbuild_set_object_name_and_dep_and_dirdep_and_PATH_target_source(pTarget, pSource, pOutBase, pObjSuff, "obj", &pDep, &pDirDep);
-    int fInstallOldVars = 0;
+    int fInstallOldObjsVar = 0;
     char *pszDstVar, *pszDst, *pszSrcVar, *pszSrc, *pszVal, *psz;
     char *pszSavedVarBuf;
     unsigned cchSavedVarBuf;
@@ -2009,7 +2041,7 @@ func_kbuild_source_one(char *o, char **argv, const char *pszFuncName)
             default:
                 iVer = 0;
                 psz = argv[0];
-                while (isblank((unsigned char)*psz))
+                while (ISBLANK(*psz))
                     psz++;
                 if (*psz)
                     iVer = atoi(psz);
@@ -2023,11 +2055,13 @@ func_kbuild_source_one(char *o, char **argv, const char *pszFuncName)
 
     if (pDefPath && !pDefPath->value_length)
         pDefPath = NULL;
-    pDefs      = kbuild_collect_source_prop(pTarget, pSource, pTool, &Sdks, pType, pBldType, pBldTrg, pBldTrgArch, pBldTrgCpu, NULL,
+
+
+    /*pDefs  =*/ kbuild_collect_source_prop(pTarget, pSource, pTool, &Sdks, pType, pBldType, pBldTrg, pBldTrgArch, pBldTrgCpu, NULL,
                                             ST("DEFS"),  ST("defs"), 1/* left-to-right */);
-    pIncs      = kbuild_collect_source_prop(pTarget, pSource, pTool, &Sdks, pType, pBldType, pBldTrg, pBldTrgArch, pBldTrgCpu, pDefPath,
+    /*pIncs  =*/ kbuild_collect_source_prop(pTarget, pSource, pTool, &Sdks, pType, pBldType, pBldTrg, pBldTrgArch, pBldTrgCpu, pDefPath,
                                             ST("INCS"),  ST("incs"), -1/* right-to-left */);
-    pFlags     = kbuild_collect_source_prop(pTarget, pSource, pTool, &Sdks, pType, pBldType, pBldTrg, pBldTrgArch, pBldTrgCpu, NULL,
+    /*pFlags =*/ kbuild_collect_source_prop(pTarget, pSource, pTool, &Sdks, pType, pBldType, pBldTrg, pBldTrgArch, pBldTrgCpu, NULL,
                                             ST("FLAGS"), ST("flags"), 1/* left-to-right */);
     pDeps      = kbuild_collect_source_prop(pTarget, pSource, pTool, &Sdks, pType, pBldType, pBldTrg, pBldTrgArch, pBldTrgCpu, pDefPath,
                                             ST("DEPS"),  ST("deps"), 1/* left-to-right */);
@@ -2051,14 +2085,14 @@ func_kbuild_source_one(char *o, char **argv, const char *pszFuncName)
 
     /*
     # dependencies
-    ifndef NO_COMPILE_CMDS_DEPS
+    ifndef NO_COMPILE_DEPS
     _DEPFILES_INCLUDED += $(dep)
     $(if $(wildcard $(dep)),$(eval include $(dep)))
     endif
      */
-    if (s_fNoCompileCmdsDepsDefined == -1)
-        s_fNoCompileCmdsDepsDefined = kbuild_lookup_variable_n(ST("NO_COMPILE_CMDS_DEPS")) != NULL;
-    if (!s_fNoCompileCmdsDepsDefined)
+    if (s_fNoCompileDepsDefined == -1)
+        s_fNoCompileDepsDefined = kbuild_lookup_variable_n(ST("NO_COMPILE_DEPS")) != NULL;
+    if (!s_fNoCompileDepsDefined)
     {
         pVar = kbuild_query_recursive_variable_n("_DEPFILES_INCLUDED", sizeof("_DEPFILES_INCLUDED") - 1);
         if (pVar)
@@ -2088,7 +2122,7 @@ func_kbuild_source_one(char *o, char **argv, const char *pszFuncName)
     */
     /** @todo Make all these local variables, if someone needs the info later it
      *        can be recalculated. (Ticket #80.) */
-    cch = sizeof("TOOL_") + pTool->value_length + sizeof("_COMPILE_") + pType->value_length + sizeof("_OUTPUT_MAYBE");
+    cch = sizeof("TOOL_") + pTool->value_length + sizeof("_COMPILE_") + pType->value_length + sizeof("_USES_KOBJCACHE");
     if (cch < pTarget->value_length + sizeof("$(_2_OBJS)"))
         cch = pTarget->value_length + sizeof("$(_2_OBJS)");
     psz = pszSrcVar = alloca(cch);
@@ -2108,23 +2142,38 @@ func_kbuild_source_one(char *o, char **argv, const char *pszFuncName)
     memcpy(pszSrc, "_CMDS", sizeof("_CMDS"));
     memcpy(pszDst, "_CMDS_", sizeof("_CMDS_"));
     pVar = kbuild_get_recursive_variable(pszSrcVar);
-    do_variable_definition_2(NILF, pszDstVar, pVar->value, pVar->value_length,
-                             !pVar->recursive, 0, o_file, f_simple, 0 /* !target_var */);
+    if (iVer <= 2)
+        do_variable_definition_2(NILF, pszDstVar, pVar->value, pVar->value_length,
+                                 !pVar->recursive, 0, o_local, f_simple, 0 /* !target_var */);
+    do_variable_definition_2(NILF, "kbsrc_cmds", pVar->value, pVar->value_length,
+                             !pVar->recursive, 0, o_local, f_simple, 0 /* !target_var */);
 
     memcpy(pszSrc, "_OUTPUT", sizeof("_OUTPUT"));
     memcpy(pszDst, "_OUTPUT_", sizeof("_OUTPUT_"));
     pVar = kbuild_get_recursive_variable(pszSrcVar);
-    pOutput = do_variable_definition_2(NILF, pszDstVar, pVar->value, pVar->value_length,
-                                       !pVar->recursive, 0, o_file, f_simple, 0 /* !target_var */);
+    if (iVer <= 2)
+        pOutput = do_variable_definition_2(NILF, pszDstVar, pVar->value, pVar->value_length,
+                                           !pVar->recursive, 0, o_local, f_simple, 0 /* !target_var */);
+    pOutput = do_variable_definition_2(NILF, "kbsrc_output", pVar->value, pVar->value_length,
+                                       !pVar->recursive, 0, o_local, f_simple, 0 /* !target_var */);
 
     memcpy(pszSrc, "_OUTPUT_MAYBE", sizeof("_OUTPUT_MAYBE"));
     memcpy(pszDst, "_OUTPUT_MAYBE_", sizeof("_OUTPUT_MAYBE_"));
     pVar = kbuild_query_recursive_variable(pszSrcVar);
     if (pVar)
-        pOutputMaybe = do_variable_definition_2(NILF, pszDstVar, pVar->value, pVar->value_length,
-                                                !pVar->recursive, 0, o_file, f_simple, 0 /* !target_var */);
+    {
+        if (iVer <= 2)
+            pOutputMaybe = do_variable_definition_2(NILF, pszDstVar, pVar->value, pVar->value_length,
+                                                    !pVar->recursive, 0, o_local, f_simple, 0 /* !target_var */);
+        pOutputMaybe = do_variable_definition_2(NILF, "kbsrc_output_maybe", pVar->value, pVar->value_length,
+                                                !pVar->recursive, 0, o_local, f_simple, 0 /* !target_var */);
+    }
     else
-        pOutputMaybe = do_variable_definition_2(NILF, pszDstVar, "", 0, 1, 0, o_file, f_simple, 0 /* !target_var */);
+    {
+        if (iVer <= 2)
+            pOutputMaybe = do_variable_definition_2(NILF, pszDstVar, "", 0, 1, 0, o_local, f_simple, 0 /* !target_var */);
+        pOutputMaybe = do_variable_definition_2(NILF, "kbsrc_output_maybe", "", 0, 1, 0, o_local, f_simple, 0 /* !target_var */);
+    }
 
     memcpy(pszSrc, "_DEPEND", sizeof("_DEPEND"));
     memcpy(pszDst, "_DEPEND_", sizeof("_DEPEND_"));
@@ -2135,9 +2184,13 @@ func_kbuild_source_one(char *o, char **argv, const char *pszFuncName)
     memcpy(psz, pDeps->value, pDeps->value_length);     psz += pDeps->value_length;
     *psz++ = ' ';
     memcpy(psz, pSource->value, pSource->value_length + 1);
-    do_variable_definition_2(NILF, pszDstVar, pszVal, pVar->value_length + 1 + pDeps->value_length + 1 + pSource->value_length,
+    if (iVer <= 2)
+        do_variable_definition_2(NILF, pszDstVar, pszVal, pVar->value_length + 1 + pDeps->value_length + 1 + pSource->value_length,
+                                 !pVar->recursive && !pDeps->recursive && !pSource->recursive,
+                                 NULL, o_local, f_simple, 0 /* !target_var */);
+    do_variable_definition_2(NILF, "kbsrc_depend", pszVal, pVar->value_length + 1 + pDeps->value_length + 1 + pSource->value_length,
                              !pVar->recursive && !pDeps->recursive && !pSource->recursive,
-                             pszVal, o_file, f_simple, 0 /* !target_var */);
+                             pszVal, o_local, f_simple, 0 /* !target_var */);
 
     memcpy(pszSrc, "_DEPORD", sizeof("_DEPORD"));
     memcpy(pszDst, "_DEPORD_", sizeof("_DEPORD_"));
@@ -2148,10 +2201,15 @@ func_kbuild_source_one(char *o, char **argv, const char *pszFuncName)
     memcpy(psz, pDirDep->value, pDirDep->value_length); psz += pDirDep->value_length;
     *psz++ = ' ';
     memcpy(psz, pOrderDeps->value, pOrderDeps->value_length + 1);
-    do_variable_definition_2(NILF, pszDstVar, pszVal,
+    if (iVer <= 2)
+        do_variable_definition_2(NILF, pszDstVar, pszVal,
+                                 pVar->value_length + 1 + pDirDep->value_length + 1 + pOrderDeps->value_length,
+                                 !pVar->recursive && !pDirDep->recursive && !pOrderDeps->recursive,
+                                 NULL, o_local, f_simple, 0 /* !target_var */);
+    do_variable_definition_2(NILF, "kbsrc_depord", pszVal,
                              pVar->value_length + 1 + pDirDep->value_length + 1 + pOrderDeps->value_length,
                              !pVar->recursive && !pDirDep->recursive && !pOrderDeps->recursive,
-                             pszVal, o_file, f_simple, 0 /* !target_var */);
+                             pszVal, o_local, f_simple, 0 /* !target_var */);
 
     /*
     _OUT_FILES      += $($(target)_$(source)_OUTPUT_) $($(target)_$(source)_OUTPUT_MAYBE_)
@@ -2166,7 +2224,7 @@ func_kbuild_source_one(char *o, char **argv, const char *pszFuncName)
     */
     memcpy(pszDstVar + pTarget->value_length, "_2_OBJS", sizeof("_2_OBJS"));
     pVar = kbuild_query_recursive_variable_n(pszDstVar, pTarget->value_length + sizeof("_2_OBJS") - 1);
-    fInstallOldVars |= iVer <= 2 && (!pVar || !pVar->value_length);
+    fInstallOldObjsVar |= iVer <= 2 && (!pVar || !pVar->value_length);
     if (pVar)
     {
         if (pVar->recursive)
@@ -2182,9 +2240,9 @@ func_kbuild_source_one(char *o, char **argv, const char *pszFuncName)
                                   NULL /* flocp */);
 
     /*
-     * Install legacy variables.
+     * Install legacy variable.
      */
-    if (fInstallOldVars)
+    if (fInstallOldObjsVar)
     {
         /* $(target)_OBJS_ = $($(target)_2_OBJS)*/
         memcpy(pszDstVar + pTarget->value_length, "_OBJS_", sizeof("_OBJS_"));
@@ -2206,12 +2264,37 @@ func_kbuild_source_one(char *o, char **argv, const char *pszFuncName)
     /*
     $(eval $(def_target_source_rule))
     */
-    pVar = kbuild_get_recursive_variable("def_target_source_rule");
-    pszVal = variable_expand_string_2 (o, pVar->value, pVar->value_length, &psz);
+    if (iVer > 2)
+    {
+        /*ifneq ($(TOOL_$(tool)_COMPILE_$(type)_USES_KOBJCACHE),)*/
+        int fUsesObjCache = 0;
+        memcpy(pszSrc, "_USES_KOBJCACHE", sizeof("_USES_KOBJCACHE"));
+        pVar = lookup_variable(pszSrcVar, pszSrc + sizeof("_USES_KOBJCACHE") - 1 - pszSrcVar);
+        if (pVar)
+        {
+            if (   !pVar->recursive
+                || IS_VARIABLE_RECURSIVE_WITHOUT_DOLLAR(pVar))
+                fUsesObjCache = pVar->value_length > 0;
+            else
+            {
+                unsigned int cchTmp = 0;
+                char *pszTmp = allocated_variable_expand_2(pVar->value, pVar->value_length, &cchTmp);
+                free(pszTmp);
+                fUsesObjCache = cchTmp > 0;
+            }
+        }
+        if (!fUsesObjCache)
+            pVar = kbuild_get_recursive_variable("def_target_source_rule_v3plus");
+        else
+            pVar = kbuild_get_recursive_variable("def_target_source_rule_v3plus_objcache");
+    }
+    else
+        pVar = kbuild_get_recursive_variable("def_target_source_rule");
+    pszVal = variable_expand_string_2(o, pVar->value, pVar->value_length, &psz);
     assert(!((size_t)pszVal & 3));
 
     install_variable_buffer(&pszSavedVarBuf, &cchSavedVarBuf);
-    eval_buffer(pszVal, psz);
+    eval_buffer(pszVal, NULL, psz);
     restore_variable_buffer(pszSavedVarBuf, cchSavedVarBuf);
 
     kbuild_put_sdks(&Sdks);
@@ -2449,19 +2532,19 @@ func_kbuild_expand_template(char *o, char **argv, const char *pszFuncName)
      * Validate input.
      */
     if (pszVersion[0] != '1' || pszVersion[1])
-      fatal(NULL, "%s: Unsupported version `%s'", pszFuncName, pszVersion);
+      OSS(fatal, NULL, "%s: Unsupported version `%s'", pszFuncName, pszVersion);
 
     if (!cchBldTrg)
-      fatal(NULL, "%s: missing bldtrg", pszFuncName);
+      OS(fatal, NULL, "%s: missing bldtrg", pszFuncName);
 
     if (!cchBldTrgArch)
-      fatal(NULL, "%s: missing bld_trg_arch", pszFuncName);
+      OS(fatal, NULL, "%s: missing bld_trg_arch", pszFuncName);
 
     if (!cchBldTrgCpu)
-      fatal(NULL, "%s: missing bld_trg_cpu", pszFuncName);
+      OS(fatal, NULL, "%s: missing bld_trg_cpu", pszFuncName);
 
     if (!cchBldType)
-      fatal(NULL, "%s: missing bld_type", pszFuncName);
+      OS(fatal, NULL, "%s: missing bld_type", pszFuncName);
 
     /*
      * Prepare the keywords, prepending dots for quicker copying.
@@ -2472,16 +2555,19 @@ func_kbuild_expand_template(char *o, char **argv, const char *pszFuncName)
     aKeys[0].cch = 0;
     aKeys[0].psz = NULL;
 
+    /* .$(bld_type) */
     aKeys[1].cch = cchBldType + 1;
     aKeys[1].psz = xmalloc (aKeys[1].cch + 1);
     aKeys[1].psz[0] = '.';
     memcpy(aKeys[1].psz + 1, pszBldType, cchBldType + 1);
 
+    /* .$(bld_trg) */
     aKeys[2].cch = cchBldTrg + 1;
     aKeys[2].psz = xmalloc (aKeys[2].cch + 1);
     aKeys[2].psz[0] = '.';
     memcpy(aKeys[2].psz + 1, pszBldTrg, cchBldTrg + 1);
 
+    /* .$(bld_trg).$(bld_trg_arch) */
     aKeys[3].cch = cchBldTrg + 1 + cchBldTrgArch + 1;
     aKeys[3].psz = xmalloc (aKeys[3].cch + 1);
     aKeys[3].psz[0] = '.';
@@ -2489,11 +2575,13 @@ func_kbuild_expand_template(char *o, char **argv, const char *pszFuncName)
     aKeys[3].psz[1 + cchBldTrg] = '.';
     memcpy(aKeys[3].psz + 1 + cchBldTrg + 1, pszBldTrgArch, cchBldTrgArch + 1);
 
+    /* .$(bld_trg_cpu) */
     aKeys[4].cch = cchBldTrgCpu + 1;
     aKeys[4].psz = xmalloc (aKeys[4].cch + 1);
     aKeys[4].psz[0] = '.';
     memcpy(aKeys[4].psz + 1, pszBldTrgCpu, cchBldTrgCpu + 1);
 
+    /* .$(bld_trg_arch) */
     aKeys[5].cch = cchBldTrgArch + 1;
     aKeys[5].psz = xmalloc (aKeys[5].cch + 1);
     aKeys[5].psz[0] = '.';
@@ -2575,15 +2663,15 @@ func_kbuild_expand_template(char *o, char **argv, const char *pszFuncName)
     if (pDefTemplate)
     {
         if (   pDefTemplate->value_length
-            && (   isspace(pDefTemplate->value[0])
-                || isspace(pDefTemplate->value[pDefTemplate->value_length - 1])))
+            && (   ISSPACE(pDefTemplate->value[0])
+                || ISSPACE(pDefTemplate->value[pDefTemplate->value_length - 1])))
         {
             unsigned int off;
             if (pDefTemplate->rdonly_val)
-                fatal(NULL, "%s: TEMPLATE is read-only", pszFuncName);
+                OS(fatal, NULL, "%s: TEMPLATE is read-only", pszFuncName);
 
             /* head */
-            for (off = 0; isspace(pDefTemplate->value[off]); off++)
+            for (off = 0; ISSPACE(pDefTemplate->value[off]); off++)
                 /* nothing */;
             if (off)
             {
@@ -2593,10 +2681,12 @@ func_kbuild_expand_template(char *o, char **argv, const char *pszFuncName)
 
             /* tail */
             off = pDefTemplate->value_length;
-            while (off > 0 && isspace(pDefTemplate->value[off - 1]))
+            while (off > 0 && ISSPACE(pDefTemplate->value[off - 1]))
                 off--;
             pDefTemplate->value_length = off;
             pDefTemplate->value[off] = '\0';
+
+            VARIABLE_CHANGED(pDefTemplate);
         }
 
         if (!pDefTemplate->value_length)
@@ -2646,7 +2736,7 @@ func_kbuild_expand_template(char *o, char **argv, const char *pszFuncName)
         {
             pszTmpl = pTmpl->value;
             cchTmpl = pTmpl->value_length;
-            while (isspace(*pszTmpl))
+            while (ISSPACE(*pszTmpl))
                 cchTmpl--, pszTmpl++;
             if (!cchTmpl)
                 continue; /* no template */

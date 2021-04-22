@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk 2243 2009-01-10 02:24:02Z bird $
+# $Id$
 ## @file
 # Sub-makefile for the source directory.
 #
 
 #
-# Copyright (c) 2004-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+# Copyright (c) 2004-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
 #
 # This file is part of kBuild.
 #
@@ -29,12 +29,15 @@ include $(KBUILD_PATH)/subheader.kmk
 include $(PATH_SUB_CURRENT)/lib/Makefile.kmk
 include $(PATH_SUB_CURRENT)/sed/Makefile.kmk
 include $(PATH_SUB_CURRENT)/kmk/Makefile.kmk
-ifneq ($(KBUILD_TARGET),win)
- include $(PATH_SUB_CURRENT)/ash/Makefile.kmk
-endif
+include $(PATH_SUB_CURRENT)/kash/Makefile.kmk
 include $(PATH_SUB_CURRENT)/kDepPre/Makefile.kmk
 include $(PATH_SUB_CURRENT)/kObjCache/Makefile.kmk
 include $(PATH_SUB_CURRENT)/misc/Makefile.kmk
+ifeq ($(KBUILD_TARGET),win)
+ include $(PATH_SUB_CURRENT)/kLibTweaker/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/kDeDup/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/kWorker/Makefile.kmk
+endif
 
 include $(FILE_KBUILD_SUB_FOOTER)
 

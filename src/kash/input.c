@@ -171,12 +171,9 @@ pgetc(shinstance *psh)
 
 
 static int
-preadfd(shinstance *psh)
+preadfd_inner(shinstance *psh, char *buf, int bufsize)
 {
 	int nr;
-	char *buf = psh->parsefile->buf;
-	psh->parsenextc = buf;
-
 retry:
 #ifndef SMALL
 	if (psh->parsefile->fd == 0 && psh->el) {
@@ -189,8 +186,8 @@ retry:
 			nr = 0;
 		else {
 			nr = el_len;
-			if (nr > BUFSIZ - 8)
-				nr = BUFSIZ - 8;
+			if (nr > bufsize)
+				nr = bufsize;
 			memcpy(buf, rl_cp, nr);
 			if (nr != el_len) {
 				el_len -= nr;
@@ -201,7 +198,7 @@ retry:
 
 	} else
 #endif
-		nr = shfile_read(&psh->fdtab, psh->parsefile->fd, buf, BUFSIZ - 8);
+		nr = shfile_read(&psh->fdtab, psh->parsefile->fd, buf, bufsize);
 
 
 	if (nr <= 0) {
@@ -224,6 +221,50 @@ retry:
 	return nr;
 }
 
+
+
+static int
+preadfd(shinstance *psh)
+{
+	int nr;
+	char *buf = psh->parsefile->buf;
+	psh->parsenextc = buf;
+
+#ifdef SH_DEAL_WITH_CRLF
+	/* Convert CRLF to LF. */
+	nr = preadfd_inner(psh, buf, BUFSIZ - 9);
+	if (nr > 0) {
+		char *cr = memchr(buf, '\r', nr);
+		while (cr) {
+			size_t left = nr - (cr - buf);
+
+			if (left > 1 && cr[1] == '\n') {
+				left--;
+				nr--;
+				memmove(cr, cr + 1, left);
+				cr = memchr(cr, '\r', left);
+			} else if (left == 1) {
+        			/* Special case: \r at buffer end.  Read one more char. Screw \r\r\n sequences. */
+				int nr2 = preadfd_inner(psh, cr + 1, 1);
+				if (nr2 != 1) 
+					break;
+				if (cr[1] == '\n') {
+					*cr = '\n';
+				} else {
+					nr++;
+				}
+				break;
+			} else {
+				cr = memchr(cr + 1, '\r', left);
+			}
+		}
+	}
+#else
+	nr = preadfd_inner(psh, buf, BUFSIZ - 8);
+#endif
+	return nr;
+}
+
 /*
  * Refill the input buffer and return the next input character:
  *
@@ -239,7 +280,9 @@ preadbuffer(shinstance *psh)
 {
 	char *p, *q;
 	int more;
+#ifndef SMALL
 	int something;
+#endif
 	char savec;
 
 	if (psh->parsefile->strpush) {
@@ -263,7 +306,9 @@ again:
 	q = p = psh->parsenextc;
 
 	/* delete nul characters */
+#ifndef SMALL
 	something = 0;
+#endif
 	for (more = 1; more;) {
 		switch (*p) {
 		case '\0':
@@ -280,7 +325,9 @@ again:
 			break;
 
 		default:
+#ifndef SMALL
 			something = 1;
+#endif
 			break;
 		}
 
@@ -342,7 +389,7 @@ pushstring(shinstance *psh, char *s, size_t len, void *ap)
 	INTOFF;
 /*dprintf("*** calling pushstring: %s, %d\n", s, len);*/
 	if (psh->parsefile->strpush) {
-		sp = ckmalloc(sizeof (struct strpush));
+		sp = ckmalloc(psh, sizeof (struct strpush));
 		sp->prev = psh->parsefile->strpush;
 		psh->parsefile->strpush = sp;
 	} else
@@ -372,7 +419,7 @@ popstring(shinstance *psh)
 		sp->ap->flag &= ~ALIASINUSE;
 	psh->parsefile->strpush = sp->prev;
 	if (sp != &(psh->parsefile->basestrpush))
-		ckfree(sp);
+		ckfree(psh, sp);
 	INTON;
 }
 
@@ -392,8 +439,7 @@ setinputfile(shinstance *psh, const char *fname, int push)
 	if ((fd = shfile_open(&psh->fdtab, fname, O_RDONLY, 0)) < 0)
 		error(psh, "Can't open %s", fname);
 	if (fd < 10) {
-		fd2 = copyfd(psh, fd, 10);
-		shfile_close(&psh->fdtab, fd);
+		fd2 = movefd_above(psh, fd, 10);
 		if (fd2 < 0)
 			error(psh, "Out of file descriptors");
 		fd = fd2;
@@ -411,16 +457,16 @@ setinputfile(shinstance *psh, const char *fname, int push)
 void
 setinputfd(shinstance *psh, int fd, int push)
 {
-	(void) shfile_fcntl(&psh->fdtab, fd, F_SETFD, FD_CLOEXEC);
+	(void) shfile_cloexec(&psh->fdtab, fd, 1 /* close it */);
 	if (push) {
 		pushfile(psh);
-		psh->parsefile->buf = ckmalloc(BUFSIZ);
+		psh->parsefile->buf = ckmalloc(psh, BUFSIZ);
 	}
 	if (psh->parsefile->fd > 0)
 		shfile_close(&psh->fdtab, psh->parsefile->fd);
 	psh->parsefile->fd = fd;
 	if (psh->parsefile->buf == NULL)
-		psh->parsefile->buf = ckmalloc(BUFSIZ);
+		psh->parsefile->buf = ckmalloc(psh, BUFSIZ);
 	psh->parselleft = psh->parsenleft = 0;
 	psh->plinno = 1;
 }
@@ -459,7 +505,7 @@ pushfile(shinstance *psh)
 	psh->parsefile->lleft = psh->parselleft;
 	psh->parsefile->nextc = psh->parsenextc;
 	psh->parsefile->linno = psh->plinno;
-	pf = (struct parsefile *)ckmalloc(sizeof (struct parsefile));
+	pf = (struct parsefile *)ckmalloc(psh, sizeof (struct parsefile));
 	pf->prev = psh->parsefile;
 	pf->fd = -1;
 	pf->strpush = NULL;
@@ -477,11 +523,11 @@ popfile(shinstance *psh)
 	if (pf->fd >= 0)
 		shfile_close(&psh->fdtab, pf->fd);
 	if (pf->buf)
-		ckfree(pf->buf);
+		ckfree(psh, pf->buf);
 	while (pf->strpush)
 		popstring(psh);
 	psh->parsefile = pf->prev;
-	ckfree(pf);
+	ckfree(psh, pf);
 	psh->parsenleft = psh->parsefile->nleft;
 	psh->parselleft = psh->parsefile->lleft;
 	psh->parsenextc = psh->parsefile->nextc;

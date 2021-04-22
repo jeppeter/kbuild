@@ -142,6 +142,7 @@ expandarg(shinstance *psh, union node *arg, struct arglist *arglist, int flag)
 	}
 	STPUTC(psh, '\0', psh->expdest);
 	p = grabstackstr(psh, psh->expdest);
+	TRACE2((psh, "expandarg: p='%s'\n", p));
 	psh->exparg.lastp = &psh->exparg.list;
 	/*
 	 * TODO - EXP_REDIR
@@ -308,7 +309,7 @@ removerecordregions(shinstance *psh, int endoff)
 			struct ifsregion *ifsp;
 			INTOFF;
 			ifsp = psh->ifsfirst.next->next;
-			ckfree(psh->ifsfirst.next);
+			ckfree(psh, psh->ifsfirst.next);
 			psh->ifsfirst.next = ifsp;
 			INTON;
 		}
@@ -328,7 +329,7 @@ removerecordregions(shinstance *psh, int endoff)
 		struct ifsregion *ifsp;
 		INTOFF;
 		ifsp = psh->ifslastp->next->next;
-		ckfree(psh->ifslastp->next);
+		ckfree(psh, psh->ifslastp->next);
 		psh->ifslastp->next = ifsp;
 		INTON;
 	}
@@ -418,6 +419,9 @@ expbackq(shinstance *psh, union node *cmd, int quoted, int flag)
 	char const *syntax = quoted? DQSYNTAX : BASESYNTAX;
 	int saveherefd;
 	int quotes = flag & (EXP_FULL | EXP_CASE);
+#ifdef SH_DEAL_WITH_CRLF
+	int pending_cr = 0;
+#endif
 
 	INTOFF;
 	saveifs = psh->ifsfirst;
@@ -447,12 +451,32 @@ expbackq(shinstance *psh, union node *cmd, int quoted, int flag)
 			in.nleft = i - 1;
 		}
 		lastc = *p++;
+#ifdef SH_DEAL_WITH_CRLF
+		if (pending_cr) {
+			pending_cr = 0;
+			if (lastc != '\n') {
+				if (quotes && syntax[(int)'\r'] == CCTL)
+					STPUTC(psh, CTLESC, dest);
+				STPUTC(psh, '\r', dest);
+			}
+		}
+		if (lastc == '\r')
+			pending_cr = '\r';
+		else
+#endif
 		if (lastc != '\0') {
 			if (quotes && syntax[(int)lastc] == CCTL)
 				STPUTC(psh, CTLESC, dest);
 			STPUTC(psh, lastc, dest);
 		}
 	}
+#ifdef SH_DEAL_WITH_CRLF
+	if (pending_cr) {
+		if (quotes && syntax[(int)'\r'] == CCTL)
+			STPUTC(psh, CTLESC, dest);
+		STPUTC(psh, '\r', dest);
+	}
+#endif
 
 	/* Eat all trailing newlines */
 	p = stackblock(psh) + startloc;
@@ -462,7 +486,7 @@ expbackq(shinstance *psh, union node *cmd, int quoted, int flag)
 	if (in.fd >= 0)
 		shfile_close(&psh->fdtab, in.fd);
 	if (in.buf)
-		ckfree(in.buf);
+		ckfree(psh, in.buf);
 	if (in.jp)
 		psh->back_exitstatus = waitforjob(psh, in.jp);
 	if (quoted == 0)
@@ -921,7 +945,7 @@ recordregion(shinstance *psh, int start, int end, int inquotes)
 			psh->ifslastp->endoff = end;
 			return;
 		}
-		ifsp = (struct ifsregion *)ckmalloc(sizeof (struct ifsregion));
+		ifsp = (struct ifsregion *)ckmalloc(psh, sizeof (struct ifsregion));
 		psh->ifslastp->next = ifsp;
 	}
 	psh->ifslastp = ifsp;
@@ -1044,7 +1068,7 @@ ifsfree(shinstance *psh)
 		struct ifsregion *ifsp;
 		INTOFF;
 		ifsp = psh->ifsfirst.next->next;
-		ckfree(psh->ifsfirst.next);
+		ckfree(psh, psh->ifsfirst.next);
 		psh->ifsfirst.next = ifsp;
 		INTON;
 	}
@@ -1085,11 +1109,11 @@ expandmeta(shinstance *psh, struct strlist *str, int flag)
 		INTOFF;
 		if (psh->expdir == NULL) {
 			size_t i = strlen(str->text);
-			psh->expdir = ckmalloc(i < 2048 ? 2048 : i); /* XXX */
+			psh->expdir = ckmalloc(psh, i < 2048 ? 2048 : i); /* XXX */
 		}
 
 		expmeta(psh, psh->expdir, str->text);
-		ckfree(psh->expdir);
+		ckfree(psh, psh->expdir);
 		psh->expdir = NULL;
 		INTON;
 		if (psh->exparg.lastp == savelastp) {
@@ -1180,6 +1204,7 @@ expmeta(shinstance *psh, char *enddir, char *name)
 		}
 		if (metaflag == 0 || shfile_lstat(&psh->fdtab, psh->expdir, &statb) >= 0)
 			addfname(psh, psh->expdir);
+		TRACE2((psh, "expandarg: return #1 (metaflag=%d)\n", metaflag));
 		return;
 	}
 	endname = p;
@@ -1201,8 +1226,10 @@ expmeta(shinstance *psh, char *enddir, char *name)
 		cp = psh->expdir;
 		enddir[-1] = '\0';
 	}
-	if ((dirp = shfile_opendir(&psh->fdtab, cp)) == NULL)
+	if ((dirp = shfile_opendir(&psh->fdtab, cp)) == NULL) {
+		TRACE2((psh, "expandarg: return #2 (shfile_opendir(,%s) failed)\n", cp));
 		return;
+	}
 	if (enddir != psh->expdir)
 		enddir[-1] = '/';
 	if (*endname == 0) {

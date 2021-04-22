@@ -1,4 +1,4 @@
-/* $Id: kmk_time.c 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * kmk_time - Time program execution.
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (c) 2007-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2007-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *
@@ -39,6 +39,7 @@
 # include <direct.h>
 # include <process.h>
 # include <Windows.h>
+# include "quote_argv.h"
 #else
 # include <unistd.h>
 # include <sys/time.h>
@@ -193,6 +194,7 @@ int main(int argc, char **argv)
     int                 i, j;
     int                 cTimes = 1;
 #if defined(_MSC_VER)
+    int                 fUnquoted = 0;
     FILETIME ftStart,   ft;
     unsigned _int64     usMin, usMax, usAvg, usTotal, usCur;
     unsigned _int64     iStart;
@@ -203,6 +205,7 @@ int main(int argc, char **argv)
     pid_t               pid;
     int                 rc;
 #endif
+    int                 rcExit = 0;
 
     /*
      * Parse arguments.
@@ -231,6 +234,13 @@ int main(int argc, char **argv)
                 psz = "V";
             else if (!strcmp(psz, "-iterations"))
                 psz = "i";
+#if defined(_MSC_VER)
+            else if (!strcmp(psz, "-unquoted"))
+            {
+                fUnquoted = 1;
+                continue;
+            }
+#endif
         }
 
         switch (*psz)
@@ -241,7 +251,7 @@ int main(int argc, char **argv)
 
             case 'V':
                 printf("kmk_time - kBuild version %d.%d.%d (r%u)\n"
-                       "Copyright (C) 2007-2009 knut st. osmundsen\n",
+                       "Copyright (C) 2007-2018 knut st. osmundsen\n",
                        KBUILD_VERSION_MAJOR, KBUILD_VERSION_MINOR, KBUILD_VERSION_PATCH,
                        KBUILD_SVN_REV);
                 return 0;
@@ -285,13 +295,16 @@ int main(int argc, char **argv)
         /*
          * Execute the program (it's actually supposed to be a command I think, but wtf).
          */
-
 #if defined(_MSC_VER)
-        /** @todo
-         * We'll have to find the '--' in the commandline and pass that
-         * on to CreateProcess or spawn. Otherwise, the argument qouting
-         * is gonna be messed up.
-         */
+        if (!fUnquoted)
+        {
+            if (quote_argv(argc - i, &argv[i], 0 /*fWatcomBrainDamage*/, 0 /*fFreeOrLeak*/) != 0)
+            {
+                fprintf(stderr, "%s: error: quote_argv failed\n");
+                return 8;
+            }
+        }
+
         GetSystemTimeAsFileTime(&ftStart);
         rc = _spawnvp(_P_WAIT, argv[i], &argv[i]);
         if (rc == -1)
@@ -317,7 +330,6 @@ int main(int argc, char **argv)
                rc);
 
 #else /* unix: */
-        rc = 1;
         gettimeofday(&tvStart, NULL);
         pid = fork();
         if (!pid)
@@ -330,7 +342,7 @@ int main(int argc, char **argv)
         if (pid < 0)
         {
             fprintf(stderr, "%s: error: fork() failed: %s\n", name(argv[0]), strerror(errno));
-            return 8;
+            return 9;
         }
 
         /* parent, wait for child. */
@@ -359,16 +371,35 @@ int main(int argc, char **argv)
                (unsigned)(tv.tv_sec % 60),
                (unsigned)tv.tv_usec);
         if (WIFEXITED(rc))
+        {
             printf(" - normal exit: %d\n", WEXITSTATUS(rc));
+            rc = WEXITSTATUS(rc);
+        }
+# ifndef __HAIKU__ /**@todo figure how haiku signals that a core was dumped. */
         else if (WIFSIGNALED(rc) && WCOREDUMP(rc))
+        {
             printf(" - dumped core: %s (%d)\n", my_strsignal(WTERMSIG(rc)), WTERMSIG(rc));
+            rc = 10;
+        }
+# endif
         else if (WIFSIGNALED(rc))
+        {
             printf(" -   killed by: %s (%d)\n", my_strsignal(WTERMSIG(rc)), WTERMSIG(rc));
+            rc = 11;
+        }
         else if (WIFSTOPPED(rc))
+        {
             printf(" -  stopped by: %s (%d)\n", my_strsignal(WSTOPSIG(rc)), WSTOPSIG(rc));
+            rc = 12;
+        }
         else
+        {
             printf(" unknown exit status %#x (%d)\n", rc, rc);
+            rc = 13;
+        }
 #endif /* unix */
+        if (rc && !rcExit)
+            rcExit = (int)rc;
 
         /* calc min/max/avg */
         usTotal += usCur;
@@ -390,6 +421,6 @@ int main(int argc, char **argv)
         printf("%s: max %um%u.%06us\n", name(argv[0]), (unsigned)(usMax / 60000000), (unsigned)(usMax % 60000000) / 1000000, (unsigned)(usMax % 1000000));
     }
 
-    return rc;
+    return rcExit;
 }
 

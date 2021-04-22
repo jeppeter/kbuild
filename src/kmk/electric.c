@@ -1,10 +1,10 @@
-/* $Id: electric.c 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * A simple electric heap implementation.
  */
 
 /*
- * Copyright (c) 2007-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2007-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *
@@ -30,6 +30,7 @@
 # else
 #  include <sys/mman.h>
 #  include <errno.h>
+#  include <stdint.h>
 # endif
 # include <string.h>
 # include <stdlib.h>
@@ -157,12 +158,13 @@ xmalloc (unsigned int size)
 # endif
 }
 
+
 void *
-xcalloc (size_t size, size_t items)
+xcalloc (unsigned size)
 {
     void *result;
-    result = xmalloc (size * items);
-    return memset (result, 0, size * items);
+    result = xmalloc (size);
+    return memset (result, 0, size);
 }
 
 void *
@@ -183,10 +185,34 @@ xrealloc (void *ptr, unsigned int size)
 char *
 xstrdup (const char *ptr)
 {
-  size_t size = strlen (ptr) + 1;
-  char *result = xmalloc (size);
-  return memcpy (result, ptr, size);
+  if (ptr)
+    {
+      size_t size = strlen (ptr) + 1;
+      char *result = xmalloc (size);
+      return memcpy (result, ptr, size);
+    }
+  return NULL;
 }
+
+# ifdef __GNUC__
+void *
+xmalloc_size_t (size_t size)
+{
+  return xmalloc(size);
+}
+
+void *
+xcalloc_size_t (size_t size, size_t items)
+{
+  return xcalloc(size * items);
+}
+
+void *
+xrealloc_size_t (void *ptr, size_t size)
+{
+  return xrealloc(ptr, size);
+}
+# endif /* __GNUC__ */
 
 #else /* !ELECTRIC_HEAP */
 extern void electric_heap_keep_ansi_c_quiet (void);

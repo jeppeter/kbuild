@@ -1,6 +1,5 @@
 /* Path conversion for Windows pathnames.
-Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006,
-2007 Free Software Foundation, Inc.
+Copyright (C) 1996-2016 Free Software Foundation, Inc.
 This file is part of GNU Make.
 
 GNU Make is free software; you can redistribute it and/or modify it under the
@@ -15,12 +14,14 @@ A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#include <Windows.h> /* bird */
-#include <stdio.h>   /* bird */
+#include "makeint.h"
 #include <string.h>
 #include <stdlib.h>
-#include "make.h"
 #include "pathstuff.h"
+#if 1 /* bird */
+# include "nt_fullpath.h"
+# include <assert.h>
+#endif
 
 /*
  * Convert delimiter separated vpath to Canonical format.
@@ -30,15 +31,15 @@ convert_vpath_to_windows32(char *Path, char to_delim)
 {
     char *etok;            /* token separator for old Path */
 
-	/*
-	 * Convert all spaces to delimiters. Note that pathnames which
-	 * contain blanks get trounced here. Use 8.3 format as a workaround.
-	 */
-	for (etok = Path; etok && *etok; etok++)
-		if (isblank ((unsigned char) *etok))
-			*etok = to_delim;
+        /*
+         * Convert all spaces to delimiters. Note that pathnames which
+         * contain blanks get trounced here. Use 8.3 format as a workaround.
+         */
+        for (etok = Path; etok && *etok; etok++)
+                if (ISBLANK ((unsigned char) *etok))
+                        *etok = to_delim;
 
-	return (convert_Path_to_windows32(Path, to_delim));
+        return (convert_Path_to_windows32(Path, to_delim));
 }
 
 /*
@@ -51,6 +52,9 @@ convert_Path_to_windows32(char *Path, char to_delim)
     char *p;            /* points to element of old Path */
 
     /* is this a multi-element Path ? */
+    /* FIXME: Perhaps use ":;\"" in strpbrk to convert all quotes to
+       delimiters as well, as a way to handle quoted directories in
+       PATH?  */
     for (p = Path, etok = strpbrk(p, ":;");
          etok;
          etok = strpbrk(p, ":;"))
@@ -76,8 +80,11 @@ convert_Path_to_windows32(char *Path, char to_delim)
             for (p++; *p && *p != '"'; p++) /* skip quoted part */
                 ;
             etok = strpbrk(p, ":;");        /* find next delimiter */
-            *etok = to_delim;
-            p = ++etok;
+            if (etok) {
+                *etok = to_delim;
+                p = ++etok;
+            } else
+                p += strlen(p);
         } else {
             /* found another one, no drive letter */
             *etok = to_delim;
@@ -87,10 +94,35 @@ convert_Path_to_windows32(char *Path, char to_delim)
     return Path;
 }
 
-#if 1 /* bird */
-extern void nt_fullpath(const char *pszPath, char *pszFull, size_t cchFull);
+/*
+ * Convert to forward slashes directly (w32ify(filename, 0)).
+ */
+char *unix_slashes(char *filename) /* bird */
+{
+    char *slash = filename ;
+    while ((slash = strchr(slash, '\\')) != NULL)
+        *slash++ = '/';
+    return filename;
+}
+
+/*
+ * Resolve and convert to forward slashes directly (w32ify(filename, 1)).
+ * Returns if out of buffer space.
+ */
+char *unix_slashes_resolved(const char *src, char *dst, unsigned len)
+{
+    assert(len >= FILENAME_MAX);
+    *dst = '\0'; /** @todo nt_fullpath_cached needs to return some indication of overflow. */
+#if 1
+    nt_fullpath_cached(src, dst, len);
+#else
+    _fullpath(dst, src, len);
 #endif
 
+    return unix_slashes(dst);
+}
+
+#if 0 /* bird: replaced by unix_slashes and unix_slahes_resolved. */
 /*
  * Convert to forward slashes. Resolve to full pathname optionally
  */
@@ -98,14 +130,21 @@ char *
 w32ify(const char *filename, int resolve)
 {
     static char w32_path[FILENAME_MAX];
+#if 1 /* bird */
+
+    if (resolve) {
+        nt_fullpath_cached(filename, w32_path, sizeof(w32_path));
+    } else {
+        w32_path[0] = '\0';
+        strncat(w32_path, filename, sizeof(w32_path));
+    }
+    return unix_slashes(w32_path);
+
+#else   /* !bird */
     char *p;
 
     if (resolve) {
-#if 1 /* bird */
-        nt_fullpath(filename, w32_path, sizeof(w32_path));
-#else   /* !bird */
         _fullpath(w32_path, filename, sizeof (w32_path));
-#endif  /* !bird */
     } else
         strncpy(w32_path, filename, sizeof (w32_path));
 
@@ -114,60 +153,30 @@ w32ify(const char *filename, int resolve)
             *p = '/';
 
     return w32_path;
+#endif  /* !bird */
 }
+#endif
 
 char *
 getcwd_fs(char* buf, int len)
 {
-	char *p = getcwd(buf, len);
+        char *p = getcwd(buf, len);
 
-	if (p) {
-		char *q = w32ify(buf, 0);
-		strncpy(buf, q, len);
-	}
-
-	return p;
-}
-
-#undef stat
-/*
- * Workaround for directory names with trailing slashes.
- * Added by bird reasons stated.
- */
-int
-my_stat(const char *path, struct stat *st)
-{
-    int rc = stat(path, st);
-    if (    rc != 0
-        &&  errno == ENOENT
-        &&  *path != '\0')
-      {
-        char *slash = strchr(path, '\0') - 1;
-        if (*slash == '/' || *slash == '\\')
-          {
-            size_t len_path = slash - path + 1;
-            char *tmp = alloca(len_path + 4);
-            memcpy(tmp, path, len_path);
-            tmp[len_path] = '.';
-            tmp[len_path + 1] = '\0';
-            errno = 0;
-            rc = stat(tmp, st);
-            if (    rc == 0
-                &&  !S_ISDIR(st->st_mode))
-              {
-                errno = ENOTDIR;
-                rc = -1;
-              }
-          }
-      }
-#ifdef KMK_PRF
-    {
-        int err = errno;
-        fprintf(stderr, "stat(%s,) -> %d/%d\n", path, rc, errno);
-        errno = err;
-    }
+        if (p) {
+#if 1
+                p = unix_slashes(p);
+#else
+                char *q = w32ify(buf, 0);
+#if 1  /* bird - UPSTREAM? */
+                buf[0] = '\0';
+                strncat(buf, q, len);
+#else  /* !bird */
+                strncpy(buf, q, len);
 #endif
-    return rc;
+#endif
+        }
+
+        return p;
 }
 
 #ifdef unused

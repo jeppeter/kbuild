@@ -2,14 +2,14 @@
 echo this is a rexx script!
 cancel & quit & exit
 */
-/* $Id: envos2.cmd 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * Environment setup script for OS/2.
  */
 
 /*
  *
- * Copyright (c) 1999-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 1999-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *

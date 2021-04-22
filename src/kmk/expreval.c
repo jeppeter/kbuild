@@ -1,11 +1,11 @@
 #ifdef CONFIG_WITH_IF_CONDITIONALS
-/* $Id: expreval.c 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * expreval - Expressions evaluator, C / BSD make / nmake style.
  */
 
 /*
- * Copyright (c) 2008-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2008-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *
@@ -27,13 +27,13 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include "make.h"
+#include "makeint.h"
 #include <assert.h>
 
 #include <glob.h>
 
-#include "dep.h"
 #include "filedef.h"
+#include "dep.h"
 #include "job.h"
 #include "commands.h"
 #include "variable.h"
@@ -161,7 +161,7 @@ typedef struct EXPR
     /** The current location. */
     const char *psz;
     /** The current file location, used for errors. */
-    const struct floc *pFileLoc;
+    const floc *pFileLoc;
     /** Pending binary operator. */
     PCEXPROP pPending;
     /** Top of the operator stack. */
@@ -212,7 +212,7 @@ static void expr_error(PEXPR pThis, const char *pszError, ...)
     vsprintf(szTmp, pszError, va);
     va_end(va);
 
-    fatal(pThis->pFileLoc, "%s", szTmp);
+    OS(fatal,pThis->pFileLoc, "%s", szTmp);
 }
 
 
@@ -283,7 +283,7 @@ static EXPRRET expr_string_to_num(PEXPR pThis, EXPRINT64 *piDst, const char *psz
     /*
      * Skip blanks.
      */
-    while (isblank(*psz))
+    while (ISBLANK(*psz))
         psz++;
 
     /*
@@ -304,7 +304,7 @@ static EXPRRET expr_string_to_num(PEXPR pThis, EXPRINT64 *piDst, const char *psz
      *                                                                      .
      * Recognize some exsotic prefixes here in addition to the two standard ones.
      */
-    if (*psz != '0' || psz[1] == '\0' || isblank((unsigned int)psz[1]))
+    if (*psz != '0' || psz[1] == '\0' || ISBLANK(psz[1]))
         uBase = 10;
     else if (psz[1] == 'x' || psz[1] == 'X')
     {
@@ -369,7 +369,7 @@ static EXPRRET expr_string_to_num(PEXPR pThis, EXPRINT64 *piDst, const char *psz
 
             default:
                 /* is the rest white space? */
-                while (isspace((unsigned int)*psz))
+                while (ISSPACE(*psz))
                     psz++;
                 if (*psz != '\0')
                 {
@@ -390,7 +390,7 @@ static EXPRRET expr_string_to_num(PEXPR pThis, EXPRINT64 *piDst, const char *psz
                 i = -i;
             *piDst = i;
             if (!fQuiet)
-                expr_error(pThis, "Invalid a number \"%.80s\"", pszSrc);
+                expr_error(pThis, "Invalid number \"%.80s\"", pszSrc);
             return kExprRet_Error;
         }
 
@@ -744,7 +744,7 @@ static int expr_var_make_bool(PEXPRVAR pVar)
              */
             EXPRINT64 iVal;
             char const *psz = pVar->uVal.psz;
-            while (isblank((unsigned char)*psz))
+            while (ISBLANK(*psz))
                 psz++;
             if (    *psz
                 &&  expr_string_to_num(NULL, &iVal, psz, 1 /* fQuiet */) >= kExprRet_Ok)
@@ -1396,7 +1396,7 @@ static EXPRRET expr_op_equal(PEXPR pThis)
     }
 
     expr_pop_and_delete_var(pThis);
-    return kExprRet_Ok;
+    return rc;
 }
 
 
@@ -1772,7 +1772,7 @@ static EXPRRET expr_get_binary_or_eoe_or_rparen(PEXPR pThis)
         char const *psz = pThis->psz;
 
         /* spaces */
-        while (isspace((unsigned int)*psz))
+        while (ISSPACE(*psz))
             psz++;
         /* see what we've got. */
         if (*psz)
@@ -1836,7 +1836,7 @@ static EXPRRET expr_get_unary_or_operand(PEXPR pThis)
     /*
      * Eat white space and make sure there is something after it.
      */
-    while (isspace((unsigned int)*psz))
+    while (ISSPACE(*psz))
         psz++;
     if (!*psz)
     {
@@ -1934,7 +1934,7 @@ static EXPRRET expr_get_unary_or_operand(PEXPR pThis)
                         if (pOp)
                             break;
                     }
-                    if (isspace((unsigned char)ch))
+                    if (ISSPACE(ch))
                         break;
                 }
 
@@ -1979,14 +1979,14 @@ static EXPRRET expr_eval(PEXPR pThis)
          */
         do  rc = expr_get_unary_or_operand(pThis);
         while (rc == kExprRet_Operator);
-        if (rc < kExprRet_Error)
+        if (rc < kExprRet_Ok)
             break;
 
         /*
          * Look for a binary operator, right parenthesis or end of expression.
          */
         rc = expr_get_binary_or_eoe_or_rparen(pThis);
-        if (rc < kExprRet_Error)
+        if (rc < kExprRet_Ok)
             break;
         expr_unget_op(pThis);
 
@@ -2002,10 +2002,10 @@ static EXPRRET expr_eval(PEXPR pThis)
             pOp = pThis->apOps[pThis->iOp--];
             assert(pThis->iVar + 1 >= pOp->cArgs);
             rc = pOp->pfn(pThis);
-            if (rc < kExprRet_Error)
+            if (rc < kExprRet_Ok)
                 break;
         }
-        if (rc < kExprRet_Error)
+        if (rc < kExprRet_Ok)
             break;
 
         /*
@@ -2013,7 +2013,7 @@ static EXPRRET expr_eval(PEXPR pThis)
          * There should be no right parenthesis here.
          */
         rc = expr_get_binary_or_eoe_or_rparen(pThis);
-        if (rc < kExprRet_Error)
+        if (rc < kExprRet_Ok)
             break;
         pOp = pThis->apOps[pThis->iOp];
         if (!pOp->iPrecedence)
@@ -2080,7 +2080,7 @@ static PEXPR expr_create(char const *pszExpr)
  * @param   line    The expression.
  * @param   flocp   The file location, used for errors.
  */
-int expr_eval_if_conditionals(const char *line, const struct floc *flocp)
+int expr_eval_if_conditionals(const char *line, const floc *flocp)
 {
     /*
      * Instantiate the expression evaluator and let

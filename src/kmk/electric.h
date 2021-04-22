@@ -1,10 +1,10 @@
-/* $Id: electric.h 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * A simple electric heap implementation, wrapper header.
  */
 
 /*
- * Copyright (c) 2007-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2007-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *
@@ -32,16 +32,35 @@
 #include <string.h> /* strdup */
 
 void xfree (void *);
-void *xcalloc (size_t, size_t);
+void *xcalloc (unsigned int);
 void *xmalloc (unsigned int);
 void *xrealloc (void *, unsigned int);
 char *xstrdup (const char *);
+#ifdef __GNUC__
+void *xmalloc_size_t (size_t size);
+void *xcalloc_size_t (size_t size, size_t items);
+void *xrealloc_size_t (void *ptr, size_t size);
+#endif
 
-#define free(a)         xfree(a)
-#define calloc(a,b)     xcalloc((a),(b))
-#define malloc(a)       xmalloc(a)
-#define realloc(a,b)    xrealloc((a),(b))
+
+#undef  free
+//#define free(a)         xfree(a)
+#define free            xfree
+#undef  strdup
 #define strdup(a)       xstrdup(a)
+
+#undef  calloc
+#undef  malloc
+#undef  realloc
+#ifdef __GNUC__
+# define calloc(a,b)     xcalloc_size_t(a,b)
+# define malloc(a)       xmalloc_size_t(a)
+# define realloc(a,b)    xrealloc_size_t(a,b)
+#else
+# define calloc(a,b)     xcalloc((a) * (b))
+# define malloc(a)       xmalloc(a)
+# define realloc(a,b)    xrealloc((a),(b))
+#endif
 
 #endif
 

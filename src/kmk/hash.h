@@ -1,5 +1,5 @@
 /* hash.h -- decls for hash table
-Copyright (C) 1995, 1999, 2002 Free Software Foundation, Inc.
+Copyright (C) 1995, 1999, 2002, 2010 Free Software Foundation, Inc.
 Written by Greg McGary <gkm@gnu.org> <greg@mcgary.org>
 
 GNU Make is free software; you can redistribute it and/or modify it under the
@@ -28,9 +28,9 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #else /* Not C++ or ANSI C.  */
 # undef	__P
 # define __P(protos)	()
-/* We can get away without defining `const' here only because in this file
-   it is used only inside the prototype for `fnmatch', which is elided in
-   non-ANSI C where `const' is problematical.  */
+/* We can get away without defining 'const' here only because in this file
+   it is used only inside the prototype for 'fnmatch', which is elided in
+   non-ANSI C where 'const' is problematical.  */
 #endif /* C++ or ANSI C.  */
 
 typedef unsigned long (*hash_func_t) __P((void const *key));
@@ -41,6 +41,9 @@ typedef void (*hash_map_arg_func_t) __P((void const *item, void *arg));
 struct hash_table
 {
   void **ht_vec;
+  hash_func_t ht_hash_1;	/* primary hash function */
+  hash_func_t ht_hash_2;	/* secondary hash function */
+  hash_cmp_func_t ht_compare;	/* comparison function */
   unsigned long ht_size;	/* total number of slots (power of 2) */
   unsigned long ht_capacity;	/* usable slots, limited by loading-factor */
   unsigned long ht_fill;	/* items in table */
@@ -48,9 +51,6 @@ struct hash_table
   unsigned long ht_collisions;	/* # of failed calls to comparison function */
   unsigned long ht_lookups;	/* # of queries */
   unsigned int ht_rehashes;	/* # of times we've expanded table */
-  hash_func_t ht_hash_1;	/* primary hash function */
-  hash_func_t ht_hash_2;	/* secondary hash function */
-  hash_cmp_func_t ht_compare;	/* comparison function */
 #ifdef CONFIG_WITH_STRCACHE2
   struct strcache2 *ht_strcache; /* the string cache pointer. */
   unsigned int ht_off_string;  /* offsetof (struct key, string) */
@@ -96,6 +96,9 @@ extern void *hash_deleted_item;
 
 /* hash and comparison macros for case-sensitive string keys. */
 
+/* Due to the strcache, it's not uncommon for the string pointers to
+   be identical.  Take advantage of that to short-circuit string compares.  */
+
 #define STRING_HASH_1(KEY, RESULT) do { \
   unsigned char const *_key_ = (unsigned char const *) (KEY) - 1; \
   while (*++_key_) \
@@ -119,10 +122,10 @@ extern void *hash_deleted_item;
 } while (0)
 
 #define STRING_COMPARE(X, Y, RESULT) do { \
-  RESULT = strcmp ((X), (Y)); \
+    RESULT = (X) == (Y) ? 0 : strcmp ((X), (Y)); \
 } while (0)
 #define return_STRING_COMPARE(X, Y) do { \
-  return strcmp ((X), (Y)); \
+  return (X) == (Y) ? 0 : strcmp ((X), (Y)); \
 } while (0)
 
 
@@ -155,10 +158,10 @@ extern void *hash_deleted_item;
 } while (0)
 
 #define STRING_N_COMPARE(X, Y, N, RESULT) do { \
-  RESULT = strncmp ((X), (Y), (N)); \
+  RESULT = (X) == (Y) ? 0 : strncmp ((X), (Y), (N)); \
 } while (0)
 #define return_STRING_N_COMPARE(X, Y, N) do { \
-  return strncmp ((X), (Y), (N)); \
+  return (X) == (Y) ? 0 : strncmp ((X), (Y), (N)); \
 } while (0)
 
 #ifdef HAVE_CASE_INSENSITIVE_FS
@@ -188,10 +191,10 @@ extern void *hash_deleted_item;
 } while (0)
 
 #define ISTRING_COMPARE(X, Y, RESULT) do { \
-  RESULT = strcasecmp ((X), (Y)); \
+  RESULT = (X) == (Y) ? 0 : strcasecmp ((X), (Y)); \
 } while (0)
 #define return_ISTRING_COMPARE(X, Y) do { \
-  return strcasecmp ((X), (Y)); \
+  return (X) == (Y) ? 0 : strcasecmp ((X), (Y)); \
 } while (0)
 
 #else

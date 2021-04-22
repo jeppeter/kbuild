@@ -115,8 +115,8 @@ STATIC int readtoken(shinstance *);
 STATIC int xxreadtoken(shinstance *);
 STATIC int readtoken1(shinstance *, int, char const *, char *, int);
 STATIC int noexpand(shinstance *, char *);
-STATIC void synexpect(shinstance *, int) __attribute__((__noreturn__));
-STATIC void synerror(shinstance *, const char *) __attribute__((__noreturn__));
+SH_NORETURN_1 STATIC void synexpect(shinstance *, int) SH_NORETURN_2;
+SH_NORETURN_1 STATIC void synerror(shinstance *, const char *) SH_NORETURN_2;
 STATIC void setprompt(shinstance *, int);
 
 
@@ -766,7 +766,7 @@ out:
 	if (!alreadyseen)
 	    TRACE((psh, "token %s %s\n", tokname[t], t == TWORD ? psh->wordtext : ""));
 	else
-	    TRACE((psh, "reread token %s %s\n", tokname[t], t == TWORD ? psh->wordtext : ""));
+	    TRACE((psh, "reread token %s \"%s\"\n", tokname[t], t == TWORD ? psh->wordtext : ""));
 #endif
 	return (t);
 }
@@ -913,7 +913,7 @@ readtoken1(shinstance *psh, int firstc, char const *syntax, char *eofmark, int s
 	int len;
 	char line[EOFMARKLEN + 1];
 	struct nodelist *bqlist;
-	int quotef;
+	int quotef = 0;
 	int *dblquotep = NULL;
 	size_t maxnest = 32;
 	int dblquote;
@@ -922,8 +922,20 @@ readtoken1(shinstance *psh, int firstc, char const *syntax, char *eofmark, int s
 	int parenlevel;	/* levels of parens in arithmetic */
 	int oldstyle;
 	char const *prevsyntax;	/* syntax before arithmetic */
+
+	psh->startlinno = psh->plinno;
+	dblquote = 0;
+	varnest = 0;
+	if (syntax == DQSYNTAX) {
+		SETDBLQUOTE();
+	}
+	quotef = 0;
+	bqlist = NULL;
+	arinest = 0;
+	parenlevel = 0;
+
 #if __GNUC__
-	/* Avoid longjmp clobbering */
+	/* Try avoid longjmp clobbering */
 	(void) &maxnest;
 	(void) &dblquotep;
 	(void) &out;
@@ -936,17 +948,6 @@ readtoken1(shinstance *psh, int firstc, char const *syntax, char *eofmark, int s
 	(void) &prevsyntax;
 	(void) &syntax;
 #endif
-
-	psh->startlinno = psh->plinno;
-	dblquote = 0;
-	varnest = 0;
-	if (syntax == DQSYNTAX) {
-		SETDBLQUOTE();
-	}
-	quotef = 0;
-	bqlist = NULL;
-	arinest = 0;
-	parenlevel = 0;
 
 	STARTSTACKSTR(psh, out);
 	loop: {	/* for each line, until end of word */
@@ -1150,7 +1151,7 @@ endword:
 	grabstackblock(psh, len);
 	psh->wordtext = out;
 	if (dblquotep != NULL)
-	    ckfree(dblquotep);
+	    ckfree(psh, dblquotep);
 	return psh->lasttoken = TWORD;
 /* end of readtoken routine */
 
@@ -1345,8 +1346,8 @@ badsub:			synerror(psh, "Bad substitution");
 		*(stackblock(psh) + typeloc) = subtype | flags;
 		if (subtype != VSNORMAL) {
 			varnest++;
-			if (varnest >= maxnest) {
-				dblquotep = ckrealloc(dblquotep, maxnest / 8);
+			if (varnest >= (int)maxnest) {
+				dblquotep = ckrealloc(psh, dblquotep, maxnest / 8);
 				dblquotep[(maxnest / 32) - 1] = 0;
 				maxnest += 32;
 			}
@@ -1379,7 +1380,7 @@ parsebackq: {
 	savepbq = psh->parsebackquote;
 	if (setjmp(jmploc.loc)) {
 		if (str)
-			ckfree(str);
+			ckfree(psh, str);
 		psh->parsebackquote = 0;
 		psh->handler = savehandler;
 		longjmp(psh->handler->loc, 1);
@@ -1388,7 +1389,7 @@ parsebackq: {
 	str = NULL;
 	savelen = (int)(out - stackblock(psh));
 	if (savelen > 0) {
-		str = ckmalloc(savelen);
+		str = ckmalloc(psh, savelen);
 		memcpy(str, stackblock(psh), savelen);
 	}
 	savehandler = psh->handler;
@@ -1494,7 +1495,7 @@ done:
 		memcpy(out, str, savelen);
 		STADJUST(psh, savelen, out);
 		INTOFF;
-		ckfree(str);
+		ckfree(psh, str);
 		str = NULL;
 		INTON;
 	}
@@ -1595,7 +1596,7 @@ goodname(const char *name)
  * occur at this point.
  */
 
-STATIC void
+SH_NORETURN_1 STATIC void
 synexpect(shinstance *psh, int token)
 {
 	char msg[64];
@@ -1611,11 +1612,15 @@ synexpect(shinstance *psh, int token)
 }
 
 
-STATIC void
+SH_NORETURN_1 STATIC void
 synerror(shinstance *psh, const char *msg)
 {
-	if (psh->commandname)
+	if (psh->commandname) {
+		TRACE((psh, "synerror: %s: %d: Syntax error: %s", psh->commandname, psh->startlinno, msg));
 		outfmt(&psh->errout, "%s: %d: ", psh->commandname, psh->startlinno);
+	} else {
+		TRACE((psh, "synerror: Syntax error: %s\n", msg));
+	}
 	outfmt(&psh->errout, "Syntax error: %s\n", msg);
 	error(psh, (char *)NULL);
 	/* NOTREACHED */

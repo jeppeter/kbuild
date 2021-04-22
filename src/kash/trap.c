@@ -191,10 +191,10 @@ trapcmd(shinstance *psh, int argc, char **argv)
 
 		INTOFF;
 		if (action)
-			action = savestr(action);
+			action = savestr(psh, action);
 
 		if (psh->trap[signo])
-			ckfree(psh->trap[signo]);
+			ckfree(psh, psh->trap[signo]);
 
 		psh->trap[signo] = action;
 
@@ -223,7 +223,7 @@ clear_traps(shinstance *psh, int vforked)
 		if (*tp && **tp) {	/* trap not NULL or SIG_IGN */
 			INTOFF;
 			if (!vforked) {
-				ckfree(*tp);
+				ckfree(psh, *tp);
 				*tp = NULL;
 			}
 			if (tp != &psh->trap[0])
@@ -433,7 +433,7 @@ setinteractive(shinstance *psh, int on)
  * Called to exit the shell.
  */
 
-void
+SH_NORETURN_1 void
 exitshell(shinstance *psh, int status)
 {
 	struct jmploc loc1, loc2;

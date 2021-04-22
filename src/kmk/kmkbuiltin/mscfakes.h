@@ -1,10 +1,10 @@
-/* $Id: mscfakes.h 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * Unix fakes for MSC.
  */
 
 /*
- * Copyright (c) 2005-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2005-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *
@@ -27,48 +27,36 @@
 #define ___mscfakes_h
 #ifdef _MSC_VER
 
+#define timeval windows_timeval
+
+/* Include the config file (kmk's) so we don't need to duplicate stuff from it here. */
+#include "config.h"
+
 #include <io.h>
 #include <direct.h>
 #include <time.h>
 #include <stdarg.h>
 #include <malloc.h>
-#include "getopt.h"
-
-#if defined(MSC_DO_64_BIT_IO) && _MSC_VER >= 1400 /* We want 64-bit file lengths here when possible. */
-# define off_t __int64
-# define stat  _stat64
-# define fstat _fstat64
-# define lseek _lseeki64
-#else
-# undef stat
-# define stat(_path, _st) my_other_stat(_path, _st)
-extern int my_other_stat(const char *, struct stat *);
+#ifndef FAKES_NO_GETOPT_H
+# include "getopt.h"
+#endif
+#ifndef MSCFAKES_NO_WINDOWS_H
+# include <Windows.h>
 #endif
 
-
-
-#ifndef S_ISDIR
-# define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
+#include <sys/stat.h>
+#include <io.h>
+#include <direct.h>
+#include "nt/ntstat.h"
+#include "nt/ntunlink.h"
+#ifdef MSC_DO_64_BIT_IO
+# if _MSC_VER >= 1400 /* We want 64-bit file lengths here when possible. */
+#  define off_t __int64
+#  define lseek _lseeki64
+# endif
 #endif
-#ifndef S_ISREG
-# define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
-#endif
-#define S_ISLNK(m)  0
-#define	S_IRWXU (_S_IREAD | _S_IWRITE | _S_IEXEC)
-#define	S_IXUSR _S_IEXEC
-#define	S_IWUSR _S_IWRITE
-#define	S_IRUSR _S_IREAD
-#define S_IRWXG 0000070
-#define S_IRGRP	0000040
-#define S_IWGRP	0000020
-#define S_IXGRP 0000010
-#define S_IRWXO 0000007
-#define S_IROTH	0000004
-#define S_IWOTH	0000002
-#define S_IXOTH 0000001
-#define	S_ISUID 0004000
-#define	S_ISGID 0002000
-#define ALLPERMS 0000777
+
+#undef timeval
 
 #undef  PATH_MAX
 #define PATH_MAX   _MAX_PATH
@@ -103,18 +91,28 @@ typedef unsigned short nlink_t;
 typedef unsigned short uid_t;
 typedef unsigned short gid_t;
 #endif
-typedef long ssize_t;
+typedef intptr_t ssize_t;
 typedef unsigned long u_long;
 typedef unsigned int u_int;
 typedef unsigned short u_short;
 
-#ifndef timerisset
-struct timeval
+#if _MSC_VER >= 1600
+# include <stdint.h>
+#else
+typedef unsigned char  uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned int   uint32_t;
+typedef signed char    int8_t;
+typedef signed short   int16_t;
+typedef signed int     int32_t;
+#endif
+
+struct msc_timeval
 {
-    long tv_sec;
+    __time64_t tv_sec;
     long tv_usec;
 };
-#endif
+#define timeval msc_timeval
 
 struct iovec
 {
@@ -134,12 +132,10 @@ char *dirname(char *path);
 #define fchmod(fd, mode) 0              /** @todo implement fchmod! */
 #define geteuid()  0
 #define getegid()  0
-#define lstat(path, s) stat(path, s)
 int lchmod(const char *path, mode_t mode);
 int msc_chmod(const char *path, mode_t mode);
 #define chmod msc_chmod
 #define lchown(path, uid, gid) chown(path, uid, gid)
-#define lutimes(path, tvs) utimes(path, tvs)
 int link(const char *pszDst, const char *pszLink);
 int mkdir_msc(const char *path, mode_t mode);
 #define mkdir(path, mode) mkdir_msc(path, mode)
@@ -162,8 +158,25 @@ int snprintf(char *buf, size_t size, const char *fmt, ...);
 #define snprintf _snprintf
 #endif
 int symlink(const char *pszDst, const char *pszLink);
-int utimes(const char *pszPath, const struct timeval *paTimes);
-int writev(int fd, const struct iovec *vector, int count);
+int utimes(const char *pszPath, const struct msc_timeval *paTimes);
+int lutimes(const char *pszPath, const struct msc_timeval *paTimes);
+ssize_t writev(int fd, const struct iovec *vector, int count);
+
+int gettimeofday(struct msc_timeval *pNow, void *pvIgnored);
+struct tm *localtime_r(const __time64_t *pNow, struct tm *pResult);
+__time64_t timegm(struct tm *pNow);
+#undef mktime
+#define mktime _mktime64
+
+/* bird write ENOSPC hacks. */
+#undef write
+#define write msc_write
+ssize_t msc_write(int fd, const void *pvSrc, size_t cbSrc);
+
+/*
+ * MSC fake internals / helpers.
+ */
+int birdSetErrno(unsigned dwErr);
 
 #endif /* _MSC_VER */
 #endif

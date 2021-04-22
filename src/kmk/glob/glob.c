@@ -50,11 +50,13 @@ USA.  */
    it is simpler to just do this in the source for each such file.  */
 
 #define GLOB_INTERFACE_VERSION 1
+#if 0 /* bird: Apparently this causes trouble for some debian builds. */
 #if !defined _LIBC && defined __GNU_LIBRARY__ && __GNU_LIBRARY__ > 1
 # include <gnu-versions.h>
 # if _GNU_GLOB_INTERFACE_VERSION == GLOB_INTERFACE_VERSION
 #  define ELIDE_CODE
 # endif
+#endif
 #endif
 
 #ifndef ELIDE_CODE
@@ -178,11 +180,13 @@ extern void bcopy ();
 
 #if !defined HAVE_MEMPCPY && __GLIBC__ - 0 == 2 && __GLIBC_MINOR__ >= 1
 # define HAVE_MEMPCPY	1
+#if 0 /* bird: This messes with the electric.c heap (linux/amd64). Probably missing prototype, so int return. */
 # undef  mempcpy
 # define mempcpy(Dest, Src, Len) __mempcpy (Dest, Src, Len)
 #endif
+#endif
 
-#if !defined(__GNU_LIBRARY__) && !defined(ELECTRIC_HEAP) && !defined(__APPLE__) /* bird (last two) */
+#if !defined __GNU_LIBRARY__ && !defined __DJGPP__ && !defined ELECTRIC_HEAP && !defined __APPLE__ /* bird (last two) */
 # ifdef	__GNUC__
 __inline
 # endif
@@ -191,9 +195,6 @@ __inline
 #   include <malloc.h>
 static void *
 my_realloc (void *p, unsigned int n)
-#  elif defined(__DJGPP__)
-static void *
-my_realloc (void *p, size_t n)
 #  else
 static char *
 my_realloc (p, n)
@@ -209,10 +210,10 @@ my_realloc (p, n)
 }
 # define	realloc	my_realloc
 # endif /* __SASC */
-#endif /* __GNU_LIBRARY__ */
+#endif /* __GNU_LIBRARY__ || __DJGPP__ */
 
 
-#if !defined __alloca && !defined __GNU_LIBRARY__
+#if !defined __alloca /*&& !defined __GNU_LIBRARY__ - bird: unresolved __alloca symbol if skipping this for gnu libc. duh. */
 
 # ifdef	__GNUC__
 #  undef alloca
@@ -229,13 +230,13 @@ extern char *alloca ();
 #    endif /* WINDOWS32 */
 #   endif /* Not _AIX.  */
 #  endif /* sparc or HAVE_ALLOCA_H.  */
-# endif	/* GCC.  */
+# endif	/* Not GCC.  */
 
 # define __alloca	alloca
 
 #endif
 
-#ifndef __GNU_LIBRARY__
+#if 1 /*bird: sigh. ndef __GNU_LIBRARY__*/
 # define __stat stat
 # ifdef STAT_MACROS_BROKEN
 #  undef S_ISDIR
@@ -246,6 +247,9 @@ extern char *alloca ();
 #endif
 
 #ifdef _LIBC
+# ifdef KMK
+#  error "_LIBC better not be defined!"
+# endif
 # undef strdup
 # define strdup(str) __strdup (str)
 # define sysconf(id) __sysconf (id)
@@ -381,6 +385,11 @@ glob (pattern, flags, errfunc, pglob)
       return -1;
     }
 
+  /* POSIX requires all slashes to be matched.  This means that with
+     a trailing slash we must match only directories.  */
+  if (pattern[0] && pattern[strlen (pattern) - 1] == '/')
+    flags |= GLOB_ONLYDIR;
+
   if (flags & GLOB_BRACE)
     {
       const char *begin = strchr (pattern, '{');
@@ -388,7 +397,7 @@ glob (pattern, flags, errfunc, pglob)
 	{
 	  /* Allocate working buffer large enough for our work.  Note that
 	    we have at least an opening and closing brace.  */
-	  size_t firstc;
+	  size_t firstc;  /* bird: correct type. */
 	  char *alt_start;
 	  const char *p;
 	  const char *next;
@@ -808,10 +817,17 @@ glob (pattern, flags, errfunc, pglob)
 
       /* Return the directory if we don't check for error or if it exists.  */
       if ((flags & GLOB_NOCHECK)
+#ifdef KMK
+	  || (flags & GLOB_ALTDIRFUNC
+	      ? (*pglob->gl_isdir) (dirname)
+	      : __stat (dirname, &st) == 0 && S_ISDIR (st.st_mode))
+#else
 	  || (((flags & GLOB_ALTDIRFUNC)
 	       ? (*pglob->gl_stat) (dirname, &st)
 	       : __stat (dirname, &st)) == 0
-	      && S_ISDIR (st.st_mode)))
+	      && S_ISDIR (st.st_mode))
+#endif
+	  )
 	{
 	  pglob->gl_pathv
 	    = (char **) realloc (pglob->gl_pathv,
@@ -955,9 +971,15 @@ glob (pattern, flags, errfunc, pglob)
 		  size_t dir_len = strlen (dir);
 
 		  /* First check whether this really is a directory.  */
+#ifdef KMK
+		  if (flags & GLOB_ALTDIRFUNC
+		      ? !pglob->gl_isdir (dir)
+		      : __stat (dir, &st) != 0 || !S_ISDIR (st.st_mode))
+#else
 		  if (((flags & GLOB_ALTDIRFUNC)
 		       ? (*pglob->gl_stat) (dir, &st) : __stat (dir, &st)) != 0
 		      || !S_ISDIR (st.st_mode))
+#endif
 		    /* No directory, ignore this entry.  */
 		    continue;
 
@@ -1030,10 +1052,16 @@ glob (pattern, flags, errfunc, pglob)
       __size_t i; /* bird: correct type. */
       struct stat st;
       for (i = oldcount; i < pglob->gl_pathc; ++i)
+#ifdef KMK
+	if (flags & GLOB_ALTDIRFUNC
+	    ? pglob->gl_isdir (pglob->gl_pathv[i])
+	    : __stat (pglob->gl_pathv[i], &st) == 0 && S_ISDIR (st.st_mode) )
+#else
 	if (((flags & GLOB_ALTDIRFUNC)
 	     ? (*pglob->gl_stat) (pglob->gl_pathv[i], &st)
 	     : __stat (pglob->gl_pathv[i], &st)) == 0
 	    && S_ISDIR (st.st_mode))
+#endif
 	  {
  	    size_t len = strlen (pglob->gl_pathv[i]) + 2;
 	    char *new = realloc (pglob->gl_pathv[i], len);
@@ -1263,9 +1291,13 @@ glob_in_dir (pattern, directory, flags, errfunc, pglob)
 	  fullname[dirlen] = '/';
 	  memcpy (&fullname[dirlen + 1], pattern, patlen + 1);
 # endif
+# ifdef KMK
+	  if (flags & GLOB_ALTDIRFUNC ? pglob->gl_exists (fullname) : __stat (fullname, &st) == 0)
+# else
 	  if (((flags & GLOB_ALTDIRFUNC)
 	       ? (*pglob->gl_stat) (fullname, &st)
 	       : __stat (fullname, &st)) == 0)
+# endif
 	    /* We found this file to be existing.  Now tell the rest
 	       of the function to copy this name into the result.  */
 	    flags |= GLOB_NOCHECK;
@@ -1412,7 +1444,7 @@ glob_in_dir (pattern, directory, flags, errfunc, pglob)
 
  memory_error:
   {
-    int save = errno;
+    /*int*/ save = errno;
     if (flags & GLOB_ALTDIRFUNC)
       (*pglob->gl_closedir) (stream);
     else

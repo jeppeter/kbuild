@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk 2243 2009-01-10 02:24:02Z bird $
+# $Id$
 ## @file
 # Sub-makefile for kObjCache.
 #
 
 #
-# Copyright (c) 2007-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+# Copyright (c) 2007-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
 #
 # This file is part of kBuild.
 #
@@ -28,8 +28,11 @@ include $(PATH_KBUILD)/subheader.kmk
 
 PROGRAMS += kObjCache
 kObjCache_TEMPLATE = BIN
+kObjCache_DEFS.release = NASSERT
 kObjCache_SOURCES = kObjCache.c
-kObjCache_LIBS = $(LIB_KUTIL)
+kObjCache_LIBS = \
+	$(LIB_KDEP) \
+	$(LIB_KUTIL)
 
 include $(KBUILD_PATH)/subfooter.kmk
 

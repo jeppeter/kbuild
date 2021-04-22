@@ -1,7 +1,5 @@
 /* Declarations for getopt.
-Copyright (C) 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007 Free Software Foundation,
-Inc.
+Copyright (C) 1989-2016 Free Software Foundation, Inc.
 
 NOTE: The canonical source of this file is maintained with the GNU C Library.
 Bugs can be reported to bug-glibc@gnu.org.
@@ -18,6 +16,7 @@ A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
+#ifndef FAKES_NO_GETOPT_H /* bird: hack for rhel4 unistd.h dragging in getopt.h */
 #ifndef _GETOPT_H
 #define _GETOPT_H 1
 
@@ -130,3 +129,4 @@ extern int _getopt_internal ();
 #endif
 
 #endif /* getopt.h */
+#endif /* bird hack */

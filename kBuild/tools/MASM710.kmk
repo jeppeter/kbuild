@@ -1,10 +1,10 @@
-# $Id: MASM710.kmk 2243 2009-01-10 02:24:02Z bird $
+# $Id$
 ## @file
 # kBuild Tool Config - MASM v7.10
 #
 
 #
-# Copyright (c) 2008-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+# Copyright (c) 2008-2017 knut st. osmundsen <bird-kBuild-spam-xviiv@anduin.net>
 #
 # This file is part of kBuild.
 #
@@ -35,12 +35,12 @@ TOOL_MASM710 := Microsoft Macro Assembler v7.10
 
 # Tool Specific Properties
 ifndef TOOL_MASM710_AS
- TOOL_MASM710_AS := $(firstword $(rsort $(wildcard $(PATH_DEVTOOLS_BLD)/masm/v7.10*/binp/ml$(HOSTSUFF_EXE))))
+ TOOL_MASM710_AS := $(firstword $(rsort $(wildcard $(KBUILD_DEVTOOLS_HST)/masm/v7.10*/binp/ml$(HOSTSUFF_EXE))))
  ifeq ($(TOOL_MASM710_AS),)
-  TOOL_MASM710_AS := $(firstword $(rsort $(wildcard $(PATH_DEVTOOLS_TRG)/masm/v7.10*/binp/ml$(HOSTSUFF_EXE))))
+  TOOL_MASM710_AS := $(firstword $(rsort $(wildcard $(KBUILD_DEVTOOLS_TRG)/masm/v7.10*/binp/ml$(HOSTSUFF_EXE))))
  endif
  ifeq ($(TOOL_MASM710_AS),)
-  TOOL_MASM710_AS := $(firstword $(rsort $(wildcard $(PATH_DEVTOOLS)/win.x86/vcc/v7*/bin/ml$(HOSTSUFF_EXE))))
+  TOOL_MASM710_AS := $(firstword $(rsort $(wildcard $(KBUILD_DEVTOOLS)/win.x86/vcc/v7*/bin/ml$(HOSTSUFF_EXE))))
  endif
 endif
 ifeq ($(TOOL_MASM710_AS),)

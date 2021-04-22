@@ -1,7 +1,5 @@
 /* Variable expansion functions for GNU Make.
-Copyright (C) 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997,
-1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007 Free Software
-Foundation, Inc.
+Copyright (C) 1988-2016 Free Software Foundation, Inc.
 This file is part of GNU Make.
 
 GNU Make is free software; you can redistribute it and/or modify it under the
@@ -16,7 +14,7 @@ A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#include "make.h"
+#include "makeint.h"
 
 #include <assert.h>
 
@@ -25,10 +23,13 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 #include "commands.h"
 #include "variable.h"
 #include "rule.h"
+#ifdef CONFIG_WITH_COMPILER
+# include "kmk_cc_exec.h"
+#endif
 
 /* Initially, any errors reported when expanding strings will be reported
    against the file where the error appears.  */
-const struct floc **expanding_var = &reading_file;
+const floc **expanding_var = &reading_file;
 
 /* The next two describe the variable output buffer.
    This buffer is used to hold the variable-expansion of a line of the
@@ -80,8 +81,8 @@ variable_buffer_output (char *ptr, const char *string, unsigned int length)
     {
       unsigned int offset = ptr - variable_buffer;
       variable_buffer_length = (newlen + 100 > 2 * variable_buffer_length
-				? newlen + 100
-				: 2 * variable_buffer_length);
+                                ? newlen + 100
+                                : 2 * variable_buffer_length);
       variable_buffer = xrealloc (variable_buffer, variable_buffer_length);
       ptr = variable_buffer + offset;
     }
@@ -140,8 +141,8 @@ recursively_expand_for_file (struct variable *v, struct file *file,
 #endif
 {
   char *value;
-  const struct floc *this_var;
-  const struct floc **saved_varp;
+  const floc *this_var;
+  const floc **saved_varp;
   struct variable_set_list *save = 0;
   int set_reading = 0;
 
@@ -165,9 +166,9 @@ recursively_expand_for_file (struct variable *v, struct file *file,
     {
       if (!v->exp_count)
         /* Expanding V causes infinite recursion.  Lose.  */
-        fatal (*expanding_var,
-               _("Recursive variable `%s' references itself (eventually)"),
-               v->name);
+        OS (fatal, *expanding_var,
+            _("Recursive variable '%s' references itself (eventually)"),
+            v->name);
       --v->exp_count;
     }
 
@@ -185,7 +186,19 @@ recursively_expand_for_file (struct variable *v, struct file *file,
     value = allocated_variable_expand (v->value);
 #else  /* CONFIG_WITH_VALUE_LENGTH */
   if (!v->append)
-    value = allocated_variable_expand_2 (v->value, v->value_length, value_lenp);
+    {
+      if (!IS_VARIABLE_RECURSIVE_WITHOUT_DOLLAR (v))
+        value = allocated_variable_expand_2 (v->value, v->value_length, value_lenp);
+      else
+        {
+          unsigned int len = v->value_length;
+          value = xmalloc (len + 2);
+          memcpy (value, v->value, len + 1);
+          value[len + 1] = '\0'; /* Extra terminator like allocated_variable_expand_2 returns. Why? */
+          if (value_lenp)
+            *value_lenp = len;
+        }
+    }
   else
     {
       value = allocated_variable_append (v);
@@ -207,15 +220,15 @@ recursively_expand_for_file (struct variable *v, struct file *file,
 }
 
 #ifdef CONFIG_WITH_VALUE_LENGTH
-/* Static worker for reference_variable() that expands the recursive
+/* Worker for reference_variable() and kmk_exec_* that expands the recursive
    variable V. The main difference between this and
    recursively_expand[_for_file] is that this worker avoids the temporary
    buffer and outputs directly into the current variable buffer (O).  */
-static char *
+char *
 reference_recursive_variable (char *o, struct variable *v)
 {
-  const struct floc *this_var;
-  const struct floc **saved_varp;
+  const floc *this_var;
+  const floc **saved_varp;
   int set_reading = 0;
 
   /* Don't install a new location if this location is empty.
@@ -238,16 +251,28 @@ reference_recursive_variable (char *o, struct variable *v)
     {
       if (!v->exp_count)
         /* Expanding V causes infinite recursion.  Lose.  */
-        fatal (*expanding_var,
-               _("Recursive variable `%s' references itself (eventually)"),
-               v->name);
+        OS (fatal, *expanding_var,
+            _("Recursive variable `%s' references itself (eventually)"),
+            v->name);
       --v->exp_count;
     }
 
   v->expanding = 1;
   if (!v->append)
-    /* Expand directly into the variable buffer.  */
-    variable_expand_string_2 (o, v->value, v->value_length, &o);
+    {
+      /* Expand directly into the variable buffer.  */
+# ifdef CONFIG_WITH_COMPILER
+      v->expand_count++;
+      if (   v->expandprog
+          || (v->expand_count == 3 && kmk_cc_compile_variable_for_expand (v)) )
+        o = kmk_exec_expand_to_var_buf (v, o);
+      else
+        variable_expand_string_2 (o, v->value, v->value_length, &o);
+# else
+      MAKE_STATS_2 (v->expand_count++);
+      variable_expand_string_2 (o, v->value, v->value_length, &o);
+# endif
+    }
   else
     {
       /* XXX: Feel free to optimize appending target variables as well.  */
@@ -295,7 +320,7 @@ reference_variable (char *o, const char *name, unsigned int length)
 
 #ifdef CONFIG_WITH_VALUE_LENGTH
   assert (v->value_length == strlen (v->value));
-  if (!v->recursive)
+  if (!v->recursive || IS_VARIABLE_RECURSIVE_WITHOUT_DOLLAR (v))
     o = variable_buffer_output (o, v->value, v->value_length);
   else
     o = reference_recursive_variable (o, v);
@@ -316,7 +341,7 @@ reference_variable (char *o, const char *name, unsigned int length)
    LENGTH bytes of STRING are actually scanned.  If LENGTH is -1, scan until
    a null byte is found.
 
-   Write the results to LINE, which must point into `variable_buffer'.  If
+   Write the results to LINE, which must point into 'variable_buffer'.  If
    LINE is NULL, start at the beginning of the buffer.
    Return a pointer to LINE, or to the beginning of the buffer if LINE is
    NULL.
@@ -326,12 +351,12 @@ variable_expand_string (char *line, const char *string, long length)
 {
   struct variable *v;
   const char *p, *p1;
-  char *abuf = NULL;
+  char *save;
   char *o;
   unsigned int line_offset;
 
   if (!line)
-    line = initialize_variable_output();
+    line = initialize_variable_output ();
   o = line;
   line_offset = line - variable_buffer;
 
@@ -341,133 +366,128 @@ variable_expand_string (char *line, const char *string, long length)
       return (variable_buffer);
     }
 
-  /* If we want a subset of the string, allocate a temporary buffer for it.
-     Most of the functions we use here don't work with length limits.  */
-  if (length > 0 && string[length] != '\0')
-    {
-      abuf = xmalloc(length+1);
-      memcpy(abuf, string, length);
-      abuf[length] = '\0';
-      string = abuf;
-    }
-  p = string;
+  /* We need a copy of STRING: due to eval, it's possible that it will get
+     freed as we process it (it might be the value of a variable that's reset
+     for example).  Also having a nil-terminated string is handy.  */
+  save = length < 0 ? xstrdup (string) : xstrndup (string, length);
+  p = save;
 
   while (1)
     {
       /* Copy all following uninteresting chars all at once to the
          variable output buffer, and skip them.  Uninteresting chars end
-	 at the next $ or the end of the input.  */
+         at the next $ or the end of the input.  */
 
       p1 = strchr (p, '$');
 
       o = variable_buffer_output (o, p, p1 != 0 ? (unsigned int)(p1 - p) : strlen (p) + 1);
 
       if (p1 == 0)
-	break;
+        break;
       p = p1 + 1;
 
       /* Dispatch on the char that follows the $.  */
 
       switch (*p)
-	{
-	case '$':
-	  /* $$ seen means output one $ to the variable output buffer.  */
-	  o = variable_buffer_output (o, p, 1);
-	  break;
+        {
+        case '$':
+        case '\0':
+          /* $$ or $ at the end of the string means output one $ to the
+             variable output buffer.  */
+          o = variable_buffer_output (o, p1, 1);
+          break;
 
-	case '(':
-	case '{':
-	  /* $(...) or ${...} is the general case of substitution.  */
-	  {
-	    char openparen = *p;
-	    char closeparen = (openparen == '(') ? ')' : '}';
+        case '(':
+        case '{':
+          /* $(...) or ${...} is the general case of substitution.  */
+          {
+            char openparen = *p;
+            char closeparen = (openparen == '(') ? ')' : '}';
             const char *begp;
-	    const char *beg = p + 1;
-	    char *op;
+            const char *beg = p + 1;
+            char *op;
             char *abeg = NULL;
-	    const char *end, *colon;
+            const char *end, *colon;
 
-	    op = o;
-	    begp = p;
-	    if (handle_function (&op, &begp))
-	      {
-		o = op;
-		p = begp;
-		break;
-	      }
+            op = o;
+            begp = p;
+            if (handle_function (&op, &begp))
+              {
+                o = op;
+                p = begp;
+                break;
+              }
 
-	    /* Is there a variable reference inside the parens or braces?
-	       If so, expand it before expanding the entire reference.  */
+            /* Is there a variable reference inside the parens or braces?
+               If so, expand it before expanding the entire reference.  */
 
-	    end = strchr (beg, closeparen);
-	    if (end == 0)
+            end = strchr (beg, closeparen);
+            if (end == 0)
               /* Unterminated variable reference.  */
-              fatal (*expanding_var, _("unterminated variable reference"));
-	    p1 = lindex (beg, end, '$');
-	    if (p1 != 0)
-	      {
-		/* BEG now points past the opening paren or brace.
-		   Count parens or braces until it is matched.  */
-		int count = 0;
-		for (p = beg; *p != '\0'; ++p)
-		  {
-		    if (*p == openparen)
-		      ++count;
-		    else if (*p == closeparen && --count < 0)
-		      break;
-		  }
-		/* If COUNT is >= 0, there were unmatched opening parens
-		   or braces, so we go to the simple case of a variable name
-		   such as `$($(a)'.  */
-		if (count < 0)
-		  {
-		    abeg = expand_argument (beg, p); /* Expand the name.  */
-		    beg = abeg;
-		    end = strchr (beg, '\0');
-		  }
-	      }
-	    else
-	      /* Advance P to the end of this reference.  After we are
+              O (fatal, *expanding_var, _("unterminated variable reference"));
+            p1 = lindex (beg, end, '$');
+            if (p1 != 0)
+              {
+                /* BEG now points past the opening paren or brace.
+                   Count parens or braces until it is matched.  */
+                int count = 0;
+                for (p = beg; *p != '\0'; ++p)
+                  {
+                    if (*p == openparen)
+                      ++count;
+                    else if (*p == closeparen && --count < 0)
+                      break;
+                  }
+                /* If COUNT is >= 0, there were unmatched opening parens
+                   or braces, so we go to the simple case of a variable name
+                   such as '$($(a)'.  */
+                if (count < 0)
+                  {
+                    abeg = expand_argument (beg, p); /* Expand the name.  */
+                    beg = abeg;
+                    end = strchr (beg, '\0');
+                  }
+              }
+            else
+              /* Advance P to the end of this reference.  After we are
                  finished expanding this one, P will be incremented to
                  continue the scan.  */
-	      p = end;
+              p = end;
 
-	    /* This is not a reference to a built-in function and
-	       any variable references inside are now expanded.
-	       Is the resultant text a substitution reference?  */
+            /* This is not a reference to a built-in function and
+               any variable references inside are now expanded.
+               Is the resultant text a substitution reference?  */
 
-	    colon = lindex (beg, end, ':');
-	    if (colon)
-	      {
-		/* This looks like a substitution reference: $(FOO:A=B).  */
-		const char *subst_beg, *subst_end, *replace_beg, *replace_end;
+            colon = lindex (beg, end, ':');
+            if (colon)
+              {
+                /* This looks like a substitution reference: $(FOO:A=B).  */
+                const char *subst_beg = colon + 1;
+                const char *subst_end = lindex (subst_beg, end, '=');
+                if (subst_end == 0)
+                  /* There is no = in sight.  Punt on the substitution
+                     reference and treat this as a variable name containing
+                     a colon, in the code below.  */
+                  colon = 0;
+                else
+                  {
+                    const char *replace_beg = subst_end + 1;
+                    const char *replace_end = end;
 
-		subst_beg = colon + 1;
-		subst_end = lindex (subst_beg, end, '=');
-		if (subst_end == 0)
-		  /* There is no = in sight.  Punt on the substitution
-		     reference and treat this as a variable name containing
-		     a colon, in the code below.  */
-		  colon = 0;
-		else
-		  {
-		    replace_beg = subst_end + 1;
-		    replace_end = end;
-
-		    /* Extract the variable name before the colon
-		       and look up that variable.  */
-		    v = lookup_variable (beg, colon - beg);
-		    if (v == 0)
-		      warn_undefined (beg, colon - beg);
+                    /* Extract the variable name before the colon
+                       and look up that variable.  */
+                    v = lookup_variable (beg, colon - beg);
+                    if (v == 0)
+                      warn_undefined (beg, colon - beg);
 
                     /* If the variable is not empty, perform the
                        substitution.  */
-		    if (v != 0 && *v->value != '\0')
-		      {
-			char *pattern, *replace, *ppercent, *rpercent;
-			char *value = (v->recursive
+                    if (v != 0 && *v->value != '\0')
+                      {
+                        char *pattern, *replace, *ppercent, *rpercent;
+                        char *value = (v->recursive
                                        ? recursively_expand (v)
-				       : v->value);
+                                       : v->value);
 
                         /* Copy the pattern and the replacement.  Add in an
                            extra % at the beginning to use in case there
@@ -485,15 +505,15 @@ variable_expand_string (char *line, const char *string, long length)
 
                         /* Look for %.  Set the percent pointers properly
                            based on whether we find one or not.  */
-			ppercent = find_percent (pattern);
-			if (ppercent)
+                        ppercent = find_percent (pattern);
+                        if (ppercent)
                           {
                             ++ppercent;
                             rpercent = find_percent (replace);
                             if (rpercent)
                               ++rpercent;
                           }
-			else
+                        else
                           {
                             ppercent = pattern;
                             rpercent = replace;
@@ -504,44 +524,39 @@ variable_expand_string (char *line, const char *string, long length)
                         o = patsubst_expand_pat (o, value, pattern, replace,
                                                  ppercent, rpercent);
 
-			if (v->recursive)
-			  free (value);
-		      }
-		  }
-	      }
+                        if (v->recursive)
+                          free (value);
+                      }
+                  }
+              }
 
-	    if (colon == 0)
-	      /* This is an ordinary variable reference.
-		 Look up the value of the variable.  */
-		o = reference_variable (o, beg, end - beg);
+            if (colon == 0)
+              /* This is an ordinary variable reference.
+                 Look up the value of the variable.  */
+                o = reference_variable (o, beg, end - beg);
 
-	  if (abeg)
-	    free (abeg);
-	  }
-	  break;
+            free (abeg);
+          }
+          break;
 
-	case '\0':
-	  break;
+        default:
+          if (ISSPACE (p[-1]))
+            break;
 
-	default:
-	  if (isblank ((unsigned char)p[-1]))
-	    break;
-
-	  /* A $ followed by a random char is a variable reference:
-	     $a is equivalent to $(a).  */
+          /* A $ followed by a random char is a variable reference:
+             $a is equivalent to $(a).  */
           o = reference_variable (o, p, 1);
 
-	  break;
-	}
+          break;
+        }
 
       if (*p == '\0')
-	break;
-      else
-	++p;
+        break;
+
+      ++p;
     }
 
-  if (abuf)
-    free (abuf);
+  free (save);
 
   variable_buffer_output (o, "", 1);
   return (variable_buffer + line_offset);
@@ -652,7 +667,7 @@ variable_expand_string_2 (char *line, const char *string, long length, char **eo
 	    end = memchr (beg, closeparen, eos - beg);
 	    if (end == 0)
               /* Unterminated variable reference.  */
-              fatal (*expanding_var, _("unterminated variable reference"));
+              O (fatal, *expanding_var, _("unterminated variable reference"));
 	    p1 = lindex (beg, end, '$');
 	    if (p1 != 0)
 	      {
@@ -782,7 +797,7 @@ variable_expand_string_2 (char *line, const char *string, long length, char **eo
           break;
 
 	default:
-	  if (isblank ((unsigned char)p[-1])) /* XXX: This looks incorrect, previous is '$' */
+	  if (ISBLANK (p[-1])) /* XXX: This looks incorrect, previous is '$' */
 	    break;
 
 	  /* A $ followed by a random char is a variable reference:
@@ -808,7 +823,7 @@ variable_expand_string_2 (char *line, const char *string, long length, char **eo
 #endif /* CONFIG_WITH_VALUE_LENGTH */
 
 /* Scan LINE for variable references and expansion-function calls.
-   Build in `variable_buffer' the result of expanding the references and calls.
+   Build in 'variable_buffer' the result of expanding the references and calls.
    Return the address of the resulting string, which is null-terminated
    and is valid only until the next time this function is called.  */
 
@@ -816,7 +831,7 @@ char *
 variable_expand (const char *line)
 {
 #ifndef CONFIG_WITH_VALUE_LENGTH
-  return variable_expand_string(NULL, line, (long)-1);
+  return variable_expand_string (NULL, line, (long)-1);
 #else  /* CONFIG_WITH_VALUE_LENGTH */
   char *s;
 
@@ -833,28 +848,37 @@ variable_expand (const char *line)
 /* Expand an argument for an expansion function.
    The text starting at STR and ending at END is variable-expanded
    into a null-terminated string that is returned as the value.
-   This is done without clobbering `variable_buffer' or the current
+   This is done without clobbering 'variable_buffer' or the current
    variable-expansion that is in progress.  */
 
 char *
 expand_argument (const char *str, const char *end)
 {
 #ifndef CONFIG_WITH_VALUE_LENGTH
-  char *tmp;
+  char *tmp, *alloc = NULL;
+  char *r;
 #endif
 
   if (str == end)
-    return xstrdup("");
+    return xstrdup ("");
 
 #ifndef CONFIG_WITH_VALUE_LENGTH
   if (!end || *end == '\0')
     return allocated_variable_expand (str);
 
-  tmp = alloca (end - str + 1);
+  if (end - str + 1 > 1000)
+    tmp = alloc = xmalloc (end - str + 1);
+  else
+    tmp = alloca (end - str + 1);
+
   memcpy (tmp, str, end - str);
   tmp[end - str] = '\0';
 
-  return allocated_variable_expand (tmp);
+  r = allocated_variable_expand (tmp);
+
+  free (alloc);
+
+  return r;
 #else  /* CONFIG_WITH_VALUE_LENGTH */
   if (!end)
       return allocated_variable_expand_2 (str, ~0U, NULL);
@@ -870,7 +894,7 @@ variable_expand_for_file (const char *line, struct file *file)
 {
   char *result;
   struct variable_set_list *savev;
-  const struct floc *savef;
+  const floc *savef;
 
   if (file == 0)
     return variable_expand (line);
@@ -906,7 +930,7 @@ variable_expand_for_file_2 (char *o, const char *line, unsigned int length,
 {
   char *result;
   struct variable_set_list *savev;
-  const struct floc *savef;
+  const floc *savef;
   long len = length == ~0U ? (long)-1 : (long)length;
   char *eol;
 
@@ -945,10 +969,12 @@ variable_expand_for_file_2 (char *o, const char *line, unsigned int length,
 
 static char *
 variable_append (const char *name, unsigned int length,
-                 const struct variable_set_list *set)
+                 const struct variable_set_list *set, int local)
 {
   const struct variable *v;
   char *buf = 0;
+  /* If this set is local and the next is not a parent, then next is local.  */
+  int nextlocal = local && set->next_is_parent == 0;
 
   /* If there's nothing left to check, return the empty buffer.  */
   if (!set)
@@ -957,14 +983,14 @@ variable_append (const char *name, unsigned int length,
   /* Try to find the variable in this variable set.  */
   v = lookup_variable_in_set (name, length, set->set);
 
-  /* If there isn't one, look to see if there's one in a set above us.  */
-  if (!v)
-    return variable_append (name, length, set->next);
+  /* If there isn't one, or this one is private, try the set above us.  */
+  if (!v || (!local && v->private_var))
+    return variable_append (name, length, set->next, nextlocal);
 
   /* If this variable type is append, first get any upper values.
      If not, initialize the buffer.  */
   if (v->append)
-    buf = variable_append (name, length, set->next);
+    buf = variable_append (name, length, set->next, nextlocal);
   else
     buf = initialize_variable_output ();
 
@@ -977,7 +1003,7 @@ variable_append (const char *name, unsigned int length,
 #endif
 
   /* Either expand it or copy it, depending.  */
-  if (! v->recursive)
+  if (! v->recursive || IS_VARIABLE_RECURSIVE_WITHOUT_DOLLAR (v))
 #ifdef CONFIG_WITH_VALUE_LENGTH
     return variable_buffer_output (buf, v->value, v->value_length);
 #else
@@ -1048,6 +1074,7 @@ append_expanded_string_to_variable (struct variable *v, const char *value,
       v->value = variable_buffer;
       v->value_length = p - v->value;
       v->value_alloc_len = variable_buffer_length;
+      VARIABLE_CHANGED(v);
 
       /* Restore the variable buffer, but without freeing the current. */
       variable_buffer = NULL;
@@ -1069,8 +1096,9 @@ allocated_variable_append (const struct variable *v)
 
   variable_buffer = 0;
 
-  assert ((unsigned int)v->length == strlen (v->name)); /* bird */
-  val = variable_append (v->name, strlen (v->name), current_variable_set_list);
+  assert ((unsigned int)v->length == strlen (v->name)); /* bird */ 
+  val = variable_append (v->name, strlen (v->name), /** @todo optimize by using v->length! */
+                         current_variable_set_list, 1);
   variable_buffer_output (val, "", 1);
   val = variable_buffer;
 
@@ -1095,11 +1123,6 @@ allocated_variable_expand_for_file (const char *line, struct file *file)
 
   value = variable_expand_for_file (line, file);
 
-#if 0
-  /* Waste a little memory and save time.  */
-  value = xrealloc (value, strlen (value))
-#endif
-
   variable_buffer = obuf;
   variable_buffer_length = olen;
 
@@ -1108,7 +1131,7 @@ allocated_variable_expand_for_file (const char *line, struct file *file)
 
 #ifdef CONFIG_WITH_VALUE_LENGTH
 /* Handle the most common case in allocated_variable_expand_for_file
-   specially and provide some additional string lenght features. */
+   specially and provide some additional string length features. */
 
 char *
 allocated_variable_expand_2 (const char *line, unsigned int length,
@@ -1190,8 +1213,42 @@ install_variable_buffer (char **bufp, unsigned int *lenp)
   initialize_variable_output ();
 }
 
-/* Restore a previously-saved variable_buffer setting (free the current one).
- */
+#ifdef CONFIG_WITH_COMPILER
+/* Same as install_variable_buffer, except we supply a size hint.  */
+
+char *
+install_variable_buffer_with_hint (char **bufp, unsigned int *lenp, unsigned int size_hint)
+{
+  struct recycled_buffer *recycled;
+  char *buf;
+
+  *bufp = variable_buffer;
+  *lenp = variable_buffer_length;
+
+  recycled = recycled_head;
+  if (recycled)
+    {
+      recycled_head = recycled->next;
+      variable_buffer_length = recycled->length;
+      variable_buffer = buf = (char *)recycled;
+    }
+  else
+    {
+      if (size_hint < 512)
+        variable_buffer_length = (size_hint + 1 + 63) & ~(unsigned int)63;
+      else if (size_hint < 4096)
+        variable_buffer_length = (size_hint + 1 + 1023) & ~(unsigned int)1023;
+      else
+        variable_buffer_length = (size_hint + 1 + 4095) & ~(unsigned int)4095;
+      variable_buffer = buf = xmalloc (variable_buffer_length);
+    }
+  buf[0] = '\0';
+  return buf;
+}
+#endif /* CONFIG_WITH_COMPILER */
+
+/* Restore a previously-saved variable_buffer setting (free the
+   current one). */
 
 void
 restore_variable_buffer (char *buf, unsigned int len)
@@ -1206,3 +1263,24 @@ restore_variable_buffer (char *buf, unsigned int len)
   variable_buffer = buf;
   variable_buffer_length = len;
 }
+
+
+/* Used to make sure there is at least SIZE bytes of buffer space
+   available starting at PTR.  */
+char *
+ensure_variable_buffer_space(char *ptr, unsigned int size)
+{
+  unsigned int offset = (unsigned int)(ptr - variable_buffer);
+  assert(offset <= variable_buffer_length);
+  if (variable_buffer_length - offset < size)
+    {
+      unsigned minlen = size + offset;
+      variable_buffer_length *= 2;
+      if (variable_buffer_length < minlen + 100)
+        variable_buffer_length = (minlen + 100 + 63) & ~(unsigned int)63;
+      variable_buffer = xrealloc (variable_buffer, variable_buffer_length);
+      ptr = variable_buffer + offset;
+    }
+  return ptr;
+}
+

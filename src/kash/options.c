@@ -260,8 +260,10 @@ SHELLPROC {
 
 	for (i = 0; psh->optlist[i].name; i++)
 		psh->optlist[i].val = 0;
+# if DEBUG == 2
+	debug(psh) = 1;
+# endif
 	optschanged(psh);
-
 }
 #endif
 
@@ -279,12 +281,12 @@ setparam(shinstance *psh, char **argv)
 
 	for (nparam = 0 ; argv[nparam] ; nparam++)
 		continue;
-	ap = newparam = ckmalloc((nparam + 1) * sizeof *ap);
+	ap = newparam = ckmalloc(psh, (nparam + 1) * sizeof *ap);
 	while (*argv) {
-		*ap++ = savestr(*argv++);
+		*ap++ = savestr(psh, *argv++);
 	}
 	*ap = NULL;
-	freeparam(&psh->shellparam);
+	freeparam(psh, &psh->shellparam);
 	psh->shellparam.malloc = 1;
 	psh->shellparam.nparam = nparam;
 	psh->shellparam.p = newparam;
@@ -297,14 +299,14 @@ setparam(shinstance *psh, char **argv)
  */
 
 void
-freeparam(volatile struct shparam *param)
+freeparam(shinstance *psh, volatile struct shparam *param)
 {
 	char **ap;
 
 	if (param->malloc) {
 		for (ap = param->p ; *ap ; ap++)
-			ckfree(*ap);
-		ckfree(param->p);
+			ckfree(psh, *ap);
+		ckfree(psh, param->p);
 	}
 }
 
@@ -329,7 +331,7 @@ shiftcmd(shinstance *psh, int argc, char **argv)
 	psh->shellparam.nparam -= n;
 	for (ap1 = psh->shellparam.p ; --n >= 0 ; ap1++) {
 		if (psh->shellparam.malloc)
-			ckfree(*ap1);
+			ckfree(psh, *ap1);
 	}
 	ap2 = psh->shellparam.p;
 	while ((*ap2++ = *ap1++) != NULL);

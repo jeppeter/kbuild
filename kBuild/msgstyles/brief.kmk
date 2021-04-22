@@ -1,10 +1,10 @@
-# $Id: brief.kmk 2243 2009-01-10 02:24:02Z bird $
+# $Id$
 ## @file
 # kBuild Message Style - 'brief'
 #
 
 #
-# Copyright (c) 2007-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+# Copyright (c) 2007-2017 knut st. osmundsen <bird-kBuild-spam-xviiv@anduin.net>
 #
 # This file is part of kBuild.
 #
@@ -34,13 +34,13 @@
 # Indent the messages, drop the kBuild: prefix, and shorten paths.
 ifndef KBUILD_VERBOSE
  ifndef MSG_L1
-  MSG_L1 = @$(PRINTF) "  %-7s %s\n" \
+  MSG_L1 = %@$(PRINTF) "  %-7s %s\n" \
 	"$(subst $(PATH_ROOT)/,{R}/,$(subst $(PATH_OUT)/,{O}/,$(subst $(CURDIR)/,{C}/,$(subst $(PATH_TARGET)/,{T}/,$1))))" \
 	"$(subst $(PATH_ROOT)/,{R}/,$(subst $(PATH_OUT)/,{O}/,$(subst $(CURDIR)/,{C}/,$(subst $(PATH_TARGET)/,{T}/,$2))))"
  endif
 else
- MSG_L1 ?= @$(ECHO) "  $(subst $(PATH_ROOT)/,{R}/,$(subst $(PATH_OUT)/,{O}/,$(subst $(CURDIR)/,{C}/,$(subst $(PATH_TARGET)/,{T}/,$1 $2))))"
- MSG_L2 ?= @$(ECHO) "  $(subst $(PATH_ROOT)/,{R}/,$(subst $(PATH_OUT)/,{O}/,$(subst $(CURDIR)/,{C}/,$(subst $(PATH_TARGET)/,{T}/,$1))))"
+ MSG_L1 ?= %@$(ECHO) "  $(subst $(PATH_ROOT)/,{R}/,$(subst $(PATH_OUT)/,{O}/,$(subst $(CURDIR)/,{C}/,$(subst $(PATH_TARGET)/,{T}/,$1 $2))))"
+ MSG_L2 ?= %@$(ECHO) "  $(subst $(PATH_ROOT)/,{R}/,$(subst $(PATH_OUT)/,{O}/,$(subst $(CURDIR)/,{C}/,$(subst $(PATH_TARGET)/,{T}/,$1))))"
 endif
 
 ## Fetch starting.

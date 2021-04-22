@@ -1,10 +1,10 @@
-/* $Id: strcache2.c 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * strcache2 - New string cache.
  */
 
 /*
- * Copyright (c) 2008-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2008-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *
@@ -26,7 +26,7 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include "make.h"
+#include "makeint.h"
 #include "strcache2.h"
 
 #include <assert.h>
@@ -74,8 +74,9 @@ typedef signed int     int32_t;
 # define STRCACHE2_MOD_IT(cache, hash)  ((hash) % (cache)->hash_div)
 #endif
 
-# if defined(__amd64__) || defined(__x86_64__) || defined(__AMD64__) || defined(_M_X64) || defined(__amd64) \
- || defined(__i386__) || defined(__x86__) || defined(__X86__) || defined(_M_IX86) || defined(__i386)
+# if (   defined(__amd64__) || defined(__x86_64__) || defined(__AMD64__) || defined(_M_X64) || defined(__amd64) \
+      || defined(__i386__) || defined(__x86__) || defined(__X86__) || defined(_M_IX86) || defined(__i386)) \
+  && !defined(GCC_ADDRESS_SANITIZER)
 #  define strcache2_get_unaligned_16bits(ptr)   ( *((const uint16_t *)(ptr)))
 # else
    /* (endian doesn't matter) */
@@ -91,6 +92,7 @@ typedef signed int     int32_t;
 static struct strcache2 *strcache_head;
 
 
+#ifndef STRCACHE2_USE_MASK
 /** Finds the closest primary number for power of two value (or something else
  *  useful if not support).   */
 MY_INLINE unsigned int strcache2_find_prime(unsigned int shift)
@@ -122,6 +124,7 @@ MY_INLINE unsigned int strcache2_find_prime(unsigned int shift)
           return (1 << shift) - 1;
     }
 }
+#endif
 
 /* The following is a bit experiment. It produces longer chains, i.e. worse
    distribution of the strings in the table, however the actual make
@@ -409,6 +412,7 @@ strcache2_case_insensitive_hash (const char *str, unsigned int len)
   return hash;
 }
 
+#if 0
 MY_INLINE int
 strcache2_memcmp_inline_short (const char *xs, const char *ys, unsigned int length)
 {
@@ -483,6 +487,7 @@ strcache2_memcmp_inline_short (const char *xs, const char *ys, unsigned int leng
   /* memcmp for longer strings */
   return memcmp (xs, ys, length);
 }
+#endif
 
 MY_INLINE int
 strcache2_memcmp_inlined (const char *xs, const char *ys, unsigned int length)
@@ -492,9 +497,11 @@ strcache2_memcmp_inlined (const char *xs, const char *ys, unsigned int length)
 #endif
   if (!((size_t)xs & 3))
     {
-      int result;
       /* aligned */
-      while (length >= 8)
+      int result;
+      unsigned reminder = length & 7;
+      length >>= 3;
+      while (length-- > 0)
         {
           result  = *(int32_t*)xs - *(int32_t*)ys;
           result |= *(int32_t*)(xs + 4) - *(int32_t*)(ys + 4);
@@ -502,9 +509,8 @@ strcache2_memcmp_inlined (const char *xs, const char *ys, unsigned int length)
             return result;
           xs += 8;
           ys += 8;
-          length -= 8;
         }
-      switch (length)
+      switch (reminder)
         {
           case 7:
               result  = *(int32_t*)xs - *(int32_t*)ys;
@@ -543,7 +549,9 @@ strcache2_memcmp_inlined (const char *xs, const char *ys, unsigned int length)
     {
       /* unaligned */
       int result;
-      while (length >= 8)
+      unsigned reminder = length & 7;
+      length >>= 3;
+      while (length-- > 0)
         {
 #if defined(__i386__) || defined(__x86_64__)
           result  = (  ((int32_t)xs[3] << 24)
@@ -570,18 +578,18 @@ strcache2_memcmp_inlined (const char *xs, const char *ys, unsigned int length)
             return result;
           xs += 8;
           ys += 8;
-          length -= 8;
         }
+
       result = 0;
-      switch (length)
+      switch (reminder)
         {
-          case 7: result |= xs[6] - ys[6];
-          case 6: result |= xs[5] - ys[5];
-          case 5: result |= xs[4] - ys[4];
-          case 4: result |= xs[3] - ys[3];
-          case 3: result |= xs[2] - ys[2];
-          case 2: result |= xs[1] - ys[1];
-          case 1: result |= xs[0] - ys[0];
+          case 7: result |= xs[6] - ys[6]; /* fall thru */
+          case 6: result |= xs[5] - ys[5]; /* fall thru */
+          case 5: result |= xs[4] - ys[4]; /* fall thru */
+          case 4: result |= xs[3] - ys[3]; /* fall thru */
+          case 3: result |= xs[2] - ys[2]; /* fall thru */
+          case 2: result |= xs[1] - ys[1]; /* fall thru */
+          case 1: result |= xs[0] - ys[0]; /* fall thru */
               return result;
           default:
           case 0:
@@ -610,6 +618,7 @@ strcache2_is_equal (struct strcache2 *cache, struct strcache2_entry const *entry
 #endif
 }
 
+#if defined(HAVE_CASE_INSENSITIVE_FS)
 MY_INLINE int
 strcache2_is_iequal (struct strcache2 *cache, struct strcache2_entry const *entry,
                      const char *str, unsigned int length, unsigned int hash)
@@ -621,12 +630,13 @@ strcache2_is_iequal (struct strcache2 *cache, struct strcache2_entry const *entr
       || entry->length != length)
       return 0;
 
-#if defined(_MSC_VER) || defined(__OS2__)
+# if defined(_MSC_VER) || defined(__OS2__)
   return _memicmp (entry + 1, str, length) == 0;
-#else
+# else
   return strncasecmp ((const char *)(entry + 1), str, length) == 0;
-#endif
+# endif
 }
+#endif /* HAVE_CASE_INSENSITIVE_FS */
 
 static void
 strcache2_rehash (struct strcache2 *cache)
@@ -913,14 +923,14 @@ strcache2_iadd (struct strcache2 *cache, const char *str, unsigned int length)
   entry = cache->hash_tab[idx];
   if (!entry)
     return strcache2_enter_string (cache, idx, str, length, hash);
-  if (strcache2_is_equal (cache, entry, str, length, hash))
+  if (strcache2_is_iequal (cache, entry, str, length, hash))
     return (const char *)(entry + 1);
   MAKE_STATS (cache->collision_1st_count++);
 
   entry = entry->next;
   if (!entry)
     return strcache2_enter_string (cache, idx, str, length, hash);
-  if (strcache2_is_equal (cache, entry, str, length, hash))
+  if (strcache2_is_iequal (cache, entry, str, length, hash))
     return (const char *)(entry + 1);
   MAKE_STATS (cache->collision_2nd_count++);
 
@@ -930,7 +940,7 @@ strcache2_iadd (struct strcache2 *cache, const char *str, unsigned int length)
       entry = entry->next;
       if (!entry)
         return strcache2_enter_string (cache, idx, str, length, hash);
-      if (strcache2_is_equal (cache, entry, str, length, hash))
+      if (strcache2_is_iequal (cache, entry, str, length, hash))
         return (const char *)(entry + 1);
       MAKE_STATS (cache->collision_3rd_count++);
     }
@@ -962,14 +972,14 @@ strcache2_iadd_hashed (struct strcache2 *cache, const char *str,
   entry = cache->hash_tab[idx];
   if (!entry)
     return strcache2_enter_string (cache, idx, str, length, hash);
-  if (strcache2_is_equal (cache, entry, str, length, hash))
+  if (strcache2_is_iequal (cache, entry, str, length, hash))
     return (const char *)(entry + 1);
   MAKE_STATS (cache->collision_1st_count++);
 
   entry = entry->next;
   if (!entry)
     return strcache2_enter_string (cache, idx, str, length, hash);
-  if (strcache2_is_equal (cache, entry, str, length, hash))
+  if (strcache2_is_iequal (cache, entry, str, length, hash))
     return (const char *)(entry + 1);
   MAKE_STATS (cache->collision_2nd_count++);
 
@@ -979,7 +989,7 @@ strcache2_iadd_hashed (struct strcache2 *cache, const char *str,
       entry = entry->next;
       if (!entry)
         return strcache2_enter_string (cache, idx, str, length, hash);
-      if (strcache2_is_equal (cache, entry, str, length, hash))
+      if (strcache2_is_iequal (cache, entry, str, length, hash))
         return (const char *)(entry + 1);
       MAKE_STATS (cache->collision_3rd_count++);
     }
@@ -1005,14 +1015,14 @@ strcache2_ilookup (struct strcache2 *cache, const char *str, unsigned int length
   entry = cache->hash_tab[idx];
   if (!entry)
     return NULL;
-  if (strcache2_is_equal (cache, entry, str, length, hash))
+  if (strcache2_is_iequal (cache, entry, str, length, hash))
     return (const char *)(entry + 1);
   MAKE_STATS (cache->collision_1st_count++);
 
   entry = entry->next;
   if (!entry)
     return NULL;
-  if (strcache2_is_equal (cache, entry, str, length, hash))
+  if (strcache2_is_iequal (cache, entry, str, length, hash))
     return (const char *)(entry + 1);
   MAKE_STATS (cache->collision_2nd_count++);
 
@@ -1022,7 +1032,7 @@ strcache2_ilookup (struct strcache2 *cache, const char *str, unsigned int length
       entry = entry->next;
       if (!entry)
         return NULL;
-      if (strcache2_is_equal (cache, entry, str, length, hash))
+      if (strcache2_is_iequal (cache, entry, str, length, hash))
         return (const char *)(entry + 1);
       MAKE_STATS (cache->collision_3rd_count++);
     }

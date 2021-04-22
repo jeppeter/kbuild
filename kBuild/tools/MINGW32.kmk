@@ -1,10 +1,10 @@
-# $Id: MINGW32.kmk 2243 2009-01-10 02:24:02Z bird $
+# $Id$
 ## @file
 # kBuild Tool Config - MinGW32 GCC v3.3+.
 #
 
 #
-# Copyright (c) 2004-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+# Copyright (c) 2004-2017 knut st. osmundsen <bird-kBuild-spam-xviiv@anduin.net>
 #
 # This file is part of kBuild.
 #
@@ -38,12 +38,12 @@ TOOL_MINGW32 := MinGW32 GCC v3.3+.
 
 # Tool Specific Properties
 ifndef PATH_TOOL_MINGW32
- PATH_TOOL_MINGW32 := $(wildcard $(PATH_DEVTOOLS_BLD)/mingw32/v*.*)
+ PATH_TOOL_MINGW32 := $(wildcard $(KBUILD_DEVTOOLS_HST)/mingw32/v*.*)
  ifeq ($(PATH_TOOL_MINGW32),)
-  PATH_TOOL_MINGW32 := $(wildcard $(PATH_DEVTOOLS)/win.x86/mingw32/v*.*)
+  PATH_TOOL_MINGW32 := $(wildcard $(KBUILD_DEVTOOLS)/win.x86/mingw32/v*.*)
  endif
  ifeq ($(PATH_TOOL_MINGW32),)
-  PATH_TOOL_MINGW32 := $(wildcard $(PATH_DEVTOOLS)/x86.win32/mingw32/v*.*)
+  PATH_TOOL_MINGW32 := $(wildcard $(KBUILD_DEVTOOLS)/x86.win32/mingw32/v*.*)
  endif
  ifneq ($(PATH_TOOL_MINGW32),)
   PATH_TOOL_MINGW32 := $(lastword $(sort $(PATH_TOOL_MINGW32)))
@@ -253,11 +253,11 @@ endef
 # @param    $(custom_post)  Custom step invoked after linking.
 # @param    $(outbase)  Output basename (full). Use this for list files and such.
 TOOL_MINGW32_LINK_DLL_OUTPUT =
-TOOL_MINGW32_LINK_DLL_OUTPUT_MAYBE = $(outbase).a $(outbase).exp $(PATH_LIB)/$(notdir $(outbase)).exp $(PATH_LIB)/$(notdir $(outbase)).a
+TOOL_MINGW32_LINK_DLL_OUTPUT_MAYBE = $(outbase).a $(outbase).exp $(PATH_STAGE_LIB)/$(notdir $(outbase)).exp $(PATH_STAGE_LIB)/$(notdir $(outbase)).a
 ## @todo Find a better solution for installing the extra files (.a, .exp, .pdb, etc).
 TOOL_MINGW32_LINK_DLL_DEPEND = $(foreach lib,$(libs),$(if $(findstring $(lib),$(subst /,x,$(lib))),, $(lib)))\
 	$(filter %.def %.res,$(othersrc))
-TOOL_MINGW32_LINK_DLL_DEPORD = $(call DIRDEP,$(PATH_LIB))
+TOOL_MINGW32_LINK_DLL_DEPORD = $(call DIRDEP,$(PATH_STAGE_LIB))
 define TOOL_MINGW32_LINK_DLL_CMDS
 	$(QUIET)$(TOOL_MINGW32_DLLWRAP) $(flags)\
 		--dllname=$(out)\
@@ -268,6 +268,6 @@ define TOOL_MINGW32_LINK_DLL_CMDS
 		$(objs)\
 		$(foreach p,$(libpath), -L$(p))\
 		$(foreach lib,$(libs), $(if $(findstring $(lib),$(subst /,x,$(lib))), -l$(patsubst lib%,%,$(basename $(lib))), $(lib)))
-	$(QUIET)$(CP) $(outbase).exp $(outbase).a $(PATH_LIB)/
+	$(QUIET)$(CP) $(outbase).exp $(outbase).a $(PATH_STAGE_LIB)/
 endef
 ## @todo separate install stuff!

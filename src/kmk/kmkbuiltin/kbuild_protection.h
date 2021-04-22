@@ -1,10 +1,10 @@
-/* $Id: kbuild_protection.h 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * Simple File Protection.
  */
 
 /*
- * Copyright (c) 2008-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2008-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *
@@ -26,6 +26,7 @@
 #ifndef ___kbuild_protection_h
 #define ___kbuild_protection_h
 
+
 /**
  * The different protection types.
  */
@@ -46,13 +47,14 @@ typedef struct KBUILDPROTECTION
 {
     unsigned int    uMagic;
     unsigned int    cProtectionDepth;
+    struct KMKBUILTINCTX *pCtx;
     unsigned char   afTypes[KBUILDPROTECTIONTYPE_MAX];
 } KBUILDPROTECTION;
 typedef KBUILDPROTECTION  *PKBUILDPROTECTION;
 typedef const KBUILDPROTECTION *PCKBUILDPROTECTION;
 
 
-void kBuildProtectionInit(PKBUILDPROTECTION pThis);
+void kBuildProtectionInit(PKBUILDPROTECTION pThis, struct KMKBUILTINCTX *pCtx);
 void kBuildProtectionTerm(PKBUILDPROTECTION pThis);
 int  kBuildProtectionScanEnv(PKBUILDPROTECTION pThis, char **papszEnv, const char *pszPrefix);
 void kBuildProtectionEnable(PKBUILDPROTECTION pThis, KBUILDPROTECTIONTYPE enmType);

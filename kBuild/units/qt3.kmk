@@ -1,10 +1,10 @@
-# $Id: qt3.kmk 2333 2009-04-10 16:31:48Z bird $
+# $Id$
 ## @file
 # Qt 3.3.x unit.
 #
 
 #
-# Copyright (c) 2008-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+# Copyright (c) 2008-2017 knut st. osmundsen <bird-kBuild-spam-xviiv@anduin.net>
 #
 # This file is part of kBuild.
 #
@@ -38,8 +38,8 @@ endif
 UNIT_qt3 = qt3
 
 
-ifndef UNIT_qt4
- # Add our target properties (same as qt4).
+if !defined(UNIT_qt4) && !defined(UNIT_qt5)
+ # Add our target properties (same as qt4 & qt5).
  PROPS_SINGLE += QTTOOL MOCTOOL UICTOOL LRCTOOL QT_TRANSLATIONS_INST QT_TRANSLATIONS_TEMPLATE QT_PREFIX
  PROPS_ACCUMULATE_R += MOCDEFS MOCFLAGS UICFLAGS LRCFLAGS QT_TRANSLATIONS QT_MOCSRCS QT_MOCHDRS
 endif
@@ -119,13 +119,15 @@ ifndef PATH_SDK_QT3
 	$(PATH_SDK_QT3)/lib32/qt3-3/lib/libqt-mt$(SUFF_DLL) \
 	/usr/lib32/libqt-mt$(SUFF_DLL) \
 	/usr/lib32/qt3/libqt-mt$(SUFF_DLL) \
-	/usr/lib32/qt3-3/lib/libqt-mt$(SUFF_DLL) \
+	/usr/lib/i386-linux-gnu/libqt-mt$(SUFF_DLL) \
 	/usr/local/lib32/libqt-mt$(SUFF_DLL) \
 	/usr/local/lib32/qt3/libqt-mt$(SUFF_DLL) \
 	/usr/local/lib32/qt3-3/lib/libqt-mt$(SUFF_DLL) \
+	/usr/local/lib/i386-linux-gnu/libqt-mt$(SUFF_DLL) \
 	$(PATH_SDK_QT3)/lib/libqt-mt$(SUFF_DLL) \
 	$(PATH_SDK_QT3)/lib/qt3/libqt-mt$(SUFF_DLL) \
 	$(PATH_SDK_QT3)/lib/qt3-3/lib/libqt-mt$(SUFF_DLL) \
+	$(PATH_SDK_QT3)/lib/i386-linux-gnu/libqt-mt$(SUFF_DLL) \
 	)))
       ifneq ($(PATH_SDK_QT3_LIB.x86),)
        export PATH_SDK_QT3_LIB.x86
@@ -143,14 +145,17 @@ ifndef PATH_SDK_QT3
 	/usr/lib64/qt3-3/lib/libqt-mt$(SUFF_DLL) \
 	/usr/lib/amd64/libqt-mt$(SUFF_DLL) \
 	/usr/lib/64/libqt-mt$(SUFF_DLL) \
+	/usr/lib/x86_64-linux-gnu/libqt-mt$(SUFF_DLL) \
 	/usr/local/lib64/libqt-mt$(SUFF_DLL) \
 	/usr/local/lib64/qt3/libqt-mt$(SUFF_DLL) \
 	/usr/local/lib64/qt3-3/lib/libqt-mt$(SUFF_DLL) \
 	/usr/local/lib/amd64/libqt-mt$(SUFF_DLL) \
 	/usr/local/lib/64/libqt-mt$(SUFF_DLL) \
+	/usr/local/lib/x86_64-linux-gnu/libqt-mt$(SUFF_DLL) \
 	$(PATH_SDK_QT3)/lib/libqt-mt$(SUFF_DLL) \
 	$(PATH_SDK_QT3)/lib/qt3/libqt-mt$(SUFF_DLL) \
 	$(PATH_SDK_QT3)/lib/qt3-3/lib/libqt-mt$(SUFF_DLL) \
+	$(PATH_SDK_QT3)/lib/x86_64-linux-gnu/libqt-mt$(SUFF_DLL) \
 	)))
       ifneq ($(PATH_SDK_QT3_LIB.amd64),)
        export PATH_SDK_QT3_LIB.amd64
@@ -507,7 +512,7 @@ ifndef NO_COMPILE_CMDS_DEPS
 	%$$(QUIET2)$$(APPEND) '$(dep)' 'endef'
 endif
 
-$(target)_INTERMEDIATES += $(realout.h)
+$(target)_2_INTERMEDIATES += $(realout.h)
 $(target)_GEN_SOURCES_ += $(realout.cpp)
 $(target)_CLEAN += $(out.h) $(out.cpp) $(realout.h) $(realout.cpp) $(more_output) $(maybe_output) $(dep)
 
@@ -596,7 +601,7 @@ ifndef NO_COMPILE_CMDS_DEPS
 	%$$(QUIET2)$$(APPEND) '$(dep)' 'endef'
 endif
 
-$(target)_INTERMEDIATES += $(realout)
+$(target)_2_INTERMEDIATES += $(realout)
 $(target)_GEN_SOURCES_ += $(realout)
 $(target)_CLEAN += $(out) $(realout) $(more_output) $(maybe_output) $(dep)
 
@@ -687,7 +692,7 @@ ifndef NO_COMPILE_CMDS_DEPS
 	%$$(QUIET2)$$(APPEND) '$(dep)' 'endef'
 endif
 
-$(target)_INTERMEDIATES += $(realout)
+$(target)_2_INTERMEDIATES += $(realout)
 $(target)_CLEAN += $(out) $(realout) $(more_output) $(maybe_output) $(dep)
 
 endef
@@ -904,7 +909,7 @@ local translations := \
  	$($(target)_QT_TRANSLATIONS.$(bld_type)) \
  	$($(target)_QT_TRANSLATIONS)
 ifneq ($(strip $(translations)),)
- local expr := _ALL_INSTALLS += $(target)-inst-nls
+ local expr := _ALL_INSTALLS_IMPLICIT += $(target)-inst-nls
  $(eval $(expr))
  ifdef $(target)_QT_TRANSLATIONS_TEMPLATE
   $(target)-inst-nls_TEMPLATE := $($(target)_QT_TRANSLATIONS_TEMPLATE)

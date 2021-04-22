@@ -1,9 +1,10 @@
-/* $Id: shfile.h 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
- *
  * File management.
- *
- * Copyright (c) 2007-2009  knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ */
+
+/*
+ * Copyright (c) 2007-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  *
  * This file is part of kBuild.
@@ -38,7 +39,7 @@
 # if !defined(__sun__)
 #  include <paths.h>
 # endif
-# ifdef _PATH_DEVNULL
+# ifndef _PATH_DEVNULL
 #  define _PATH_DEVNULL "/dev/null"
 # endif
 # ifndef _PATH_DEFPATH
@@ -46,7 +47,7 @@
 # endif
 #endif
 #ifndef _MSC_VER
-# include <sys/fcntl.h>
+# include <fcntl.h>
 # include <unistd.h>
 # ifndef O_BINARY
 #  define O_BINARY  0
@@ -101,9 +102,21 @@
 typedef struct shfile
 {
     int                 fd;             /**< The shell file descriptor number. */
-    int                 flags;          /**< Open flags. */
+    unsigned            oflags;         /**< Open flags. */
+    unsigned            shflags;        /**< The shell file descriptor flags. */
     intptr_t            native;         /**< The native file descriptor number. */
 } shfile;
+
+/** @name shfile::shflags values.
+ * @{
+ */
+#define SHFILE_FLAGS_CLOSE_ON_EXEC      0x0001
+#define SHFILE_FLAGS_TYPE_MASK          0x00f0
+#define SHFILE_FLAGS_FILE               0x0000
+#define SHFILE_FLAGS_PIPE               0x0010
+#define SHFILE_FLAGS_DIR                0x0020
+#define SHFILE_FLAGS_TTY                0x0030
+/** @} */
 
 /**
  * The file descriptor table for a shell.
@@ -116,6 +129,11 @@ typedef struct shfdtab
     shfile             *tab;            /**< Pointer to the table. */
 } shfdtab;
 
+int shfile_init(shfdtab *, shfdtab *);
+void shfile_fork_win(shfdtab *pfdtab, int set, intptr_t *hndls);
+void *shfile_exec_win(shfdtab *pfdtab, int prepare, unsigned short *sizep, intptr_t *hndls);
+int shfile_exec_unix(shfdtab *pfdtab);
+
 int shfile_open(shfdtab *, const char *, unsigned, mode_t);
 int shfile_pipe(shfdtab *, int [2]);
 int shfile_close(shfdtab *, unsigned);
@@ -124,6 +142,8 @@ long shfile_write(shfdtab *, int, const void *, size_t);
 long shfile_lseek(shfdtab *, int, long, int);
 int shfile_fcntl(shfdtab *, int fd, int cmd, int arg);
 int shfile_dup(shfdtab *, int fd);
+int shfile_movefd(shfdtab *, int fdfrom, int fdto);
+int shfile_movefd_above(shfdtab *, int fdfrom, int fdmin);
 
 int shfile_stat(shfdtab *, const char *, struct stat *);
 int shfile_lstat(shfdtab *, const char *, struct stat *);
@@ -133,7 +153,7 @@ int shfile_access(shfdtab *, const char *, int);
 int shfile_isatty(shfdtab *, int);
 int shfile_cloexec(shfdtab *, int, int);
 int shfile_ioctl(shfdtab *, int, unsigned long, void *);
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__OS2__)
 # define TIOCGWINSZ         0x4201
 typedef struct sh_winsize
 {
@@ -146,6 +166,7 @@ typedef struct sh_winsize
 typedef struct winsize sh_winsize;
 #endif
 mode_t shfile_get_umask(shfdtab *);
+void   shfile_set_umask(shfdtab *, mode_t);
 
 
 typedef struct sh_dirent
@@ -155,9 +176,14 @@ typedef struct sh_dirent
 
 typedef struct shdir
 {
-    shfdtab    *shfdtab;
+    shfdtab    *pfdtab;
     void       *native;
     shdirent    ent;
+#if K_OS == K_OS_WINDOWS
+    size_t      off;
+    size_t      cb;
+    char        buf[32768 - sizeof(void *) * 2 - sizeof(shdirent) * 2];
+#endif
 } shdir;
 
 shdir *shfile_opendir(shfdtab *, const char *);

@@ -1,10 +1,10 @@
-/* $Id: kbuild.h 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * kBuild specific make functionality.
  */
 
 /*
- * Copyright (c) 2006-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2006-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *
@@ -37,6 +37,41 @@ void init_kbuild(int argc, char **argv);
 const char *get_kbuild_path(void);
 const char *get_kbuild_bin_path(void);
 const char *get_default_kbuild_shell(void);
+
+/** @name kBuild objects
+ * @{ */
+struct kbuild_eval_data;
+struct kbuild_object;
+
+extern struct kbuild_eval_data *g_pTopKbEvalData;
+
+
+/** Special return value indicating variable name isn't an accessor. */
+#define KOBJ_NOT_KBUILD_ACCESSOR    ( (struct kbuild_object *)~(size_t)0 )
+
+/** Special lookup_kbuild_object_variable return value. */
+#define VAR_NOT_KBUILD_ACCESSOR     ( (struct variable *)~(size_t)0 )
+
+struct variable    *lookup_kbuild_object_variable_accessor(const char *pchName, size_t cchName);
+int                 is_kbuild_object_variable_accessor(const char *pchName, size_t cchName);
+struct variable    *try_define_kbuild_object_variable_via_accessor(const char *pszName, size_t cchName,
+                                                                   const char *pszValue, size_t cchValue, int fDuplicateValue,
+                                                                   enum variable_origin enmOrigin, int fRecursive,
+                                                                   floc const *pFileLoc);
+struct variable    *define_kbuild_object_variable_in_top_obj(const char *pszName, size_t cchName,
+                                                             const char *pszValue, size_t cchValue, int fDuplicateValue,
+                                                             enum variable_origin enmOrigin, int fRecursive,
+                                                             floc const *pFileLoc);
+struct variable    *kbuild_object_variable_pre_append(const char *pchName, size_t cchName,
+                                                      const char *pchValue, size_t cchValue, int fSimpleValue,
+                                                      enum variable_origin enmOrigin, int fAppend,
+                                                      const floc *pFileLoc);
+int                 eval_kbuild_read_hook(struct kbuild_eval_data **kdata, const floc *flocp,
+                                          const char *word, size_t wlen, const char *line, const char *eos, int ignoring);
+void                print_kbuild_data_base(void);
+void                print_kbuild_define_stats(void);
+void                init_kbuild_object(void);
+/** @} */
 
 #endif
 

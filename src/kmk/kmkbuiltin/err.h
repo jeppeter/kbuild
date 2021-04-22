@@ -1,10 +1,10 @@
-/* $Id: err.h 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * Override err.h stuff so we get the program names right.
  */
 
 /*
- * Copyright (c) 2005-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2005-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *
@@ -26,11 +26,13 @@
 #ifndef ___err_h
 #define ___err_h
 
-extern const char *g_progname;
-int err(int eval, const char *fmt, ...);
-int errx(int eval, const char *fmt, ...);
-void warn(const char *fmt, ...);
-void warnx(const char *fmt, ...);
+#include "../kmkbuiltin.h"
+
+int  err(PKMKBUILTINCTX pCtx, int eval, const char *fmt, ...);
+int  errx(PKMKBUILTINCTX pCtx, int eval, const char *fmt, ...);
+void warn(PKMKBUILTINCTX pCtx, const char *fmt, ...);
+void warnx(PKMKBUILTINCTX pCtx, const char *fmt, ...);
+void kmk_builtin_ctx_printf(PKMKBUILTINCTX pCtx, int fIsErr, const char *pszFormat, ...);
 
 #endif
 

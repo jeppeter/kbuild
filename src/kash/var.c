@@ -69,6 +69,7 @@ extern APIRET
 #endif
 
 
+
 /*
  * Shell variables.
  */
@@ -150,10 +151,6 @@ const struct varinit varinit[] = {
 	  NULL },
 	{ offsetof(shinstance, vpath),	VSTRFIXED|VTEXTFIXED,		"PATH=" _PATH_DEFPATH,
 	  changepath },
-#ifdef _MSC_VER
-	{ offsetof(shinstance, vpath2),	VSTRFIXED|VTEXTFIXED,		"Path=",
-	  changepath },
-#endif
 	/*
 	 * vps1 depends on uid
 	 */
@@ -208,7 +205,7 @@ initvar(shinstance *psh)
 	struct var *vp;
 	struct var **vpp;
 #ifdef PC_OS2_LIBPATHS
-	char *psz = ckmalloc(2048);
+	char *psz = ckmalloc(psh, 2048);
 	int rc;
 	int i;
 
@@ -231,7 +228,7 @@ initvar(shinstance *psh)
 		{
 			int cch1 = strlen(libpath_envs[i]);
 			int cch2 = strlen(psz) + 1;
-			psh->libpath_vars[i].text = ckmalloc(cch1 + cch2);
+			psh->libpath_vars[i].text = ckmalloc(psh, cch1 + cch2);
 			memcpy(psh->libpath_vars[i].text, libpath_envs[i], cch1);
 			memcpy(psh->libpath_vars[i].text + cch1, psz, cch2);
 		}
@@ -245,7 +242,7 @@ initvar(shinstance *psh)
 		psh->libpath_vars[i].next = *vpp;
 		*vpp = &psh->libpath_vars[i];
 	}
-	free(psz);
+	ckfree(psh, psz);
 #endif
 
 	for (ip = varinit; ip->text; ip++) {
@@ -254,7 +251,7 @@ initvar(shinstance *psh)
 			continue;
 		vp->next = *vpp;
 		*vpp = vp;
-		vp->text = strdup(ip->text);
+		vp->text = sh_strdup(psh, ip->text);
 		vp->flags = ip->flags;
 		vp->func = ip->func;
 	}
@@ -264,7 +261,11 @@ initvar(shinstance *psh)
 	if (find_var(psh, "PS1", &vpp, &psh->vps1.name_len) == NULL) {
 		psh->vps1.next = *vpp;
 		*vpp = &psh->vps1;
-		psh->vps1.text = strdup(sh_geteuid(psh) ? "PS1=$ " : "PS1=# ");
+#ifdef KBUILD_VERSION_MAJOR
+		psh->vps1.text = sh_strdup(psh, sh_geteuid(psh) ? "PS1=kash$ " : "PS1=kash# ");
+#else
+		psh->vps1.text = sh_strdup(psh, sh_geteuid(psh) ? "PS1=$ " : "PS1=# ");
+#endif
 		psh->vps1.flags = VSTRFIXED|VTEXTFIXED;
 	}
 }
@@ -331,7 +332,7 @@ setvar(shinstance *psh, const char *name, const char *val, int flags)
 	} else {
 		len += strlen(val);
 	}
-	d = nameeq = ckmalloc(len);
+	d = nameeq = ckmalloc(psh, len);
 	q = name;
 	while (--namelen >= 0)
 		*d++ = *q++;
@@ -357,6 +358,19 @@ setvareq(shinstance *psh, char *s, int flags)
 	struct var *vp, **vpp;
 	int nlen;
 
+#if defined(_MSC_VER) || defined(_WIN32)
+	/* On Windows PATH is often spelled 'Path', correct this here.  */
+	if (   s[0] == 'P'
+	    && s[1] == 'a'
+	    && s[2] == 't'
+	    && s[3] == 'h'
+	    && (s[4] == '\0' || s[4] == '=') ) {
+		s[1] = 'A';
+		s[2] = 'T';
+		s[3] = 'H';
+	}
+#endif
+
 	if (aflag(psh))
 		flags |= VEXPORT;
 	vp = find_var(psh, s, &vpp, &nlen);
@@ -371,7 +385,7 @@ setvareq(shinstance *psh, char *s, int flags)
 			(*vp->func)(psh, s + vp->name_len + 1);
 
 		if ((vp->flags & (VTEXTFIXED|VSTACK)) == 0)
-			ckfree(vp->text);
+			ckfree(psh, vp->text);
 
 		vp->flags &= ~(VTEXTFIXED|VSTACK|VUNSET);
 		vp->flags |= flags & ~VNOFUNC;
@@ -393,7 +407,8 @@ setvareq(shinstance *psh, char *s, int flags)
 	/* not found */
 	if (flags & VNOSET)
 		return;
-	vp = ckmalloc(sizeof (*vp));
+
+	vp = ckmalloc(psh, sizeof (*vp));
 	vp->flags = flags & ~VNOFUNC;
 	vp->text = s;
 	vp->name_len = nlen;
@@ -415,7 +430,7 @@ listsetvar(shinstance *psh, struct strlist *list, int flags)
 
 	INTOFF;
 	for (lp = list ; lp ; lp = lp->next) {
-		setvareq(psh, savestr(lp->text), flags);
+		setvareq(psh, savestr(psh, lp->text), flags);
 	}
 	INTON;
 }
@@ -538,12 +553,12 @@ shprocvar(shinstance *psh)
 			if ((vp->flags & VEXPORT) == 0) {
 				*prev = vp->next;
 				if ((vp->flags & VTEXTFIXED) == 0)
-					ckfree(vp->text);
+					ckfree(psh, vp->text);
 				if ((vp->flags & VSTRFIXED) == 0)
-					ckfree(vp);
+					ckfree(psh, vp);
 			} else {
 				if (vp->flags & VSTACK) {
-					vp->text = savestr(vp->text);
+					vp->text = savestr(psh, vp->text);
 					vp->flags &=~ VSTACK;
 				}
 				prev = &vp->next;
@@ -617,7 +632,7 @@ showvars(shinstance *psh, const char *name, int flag, int show_value)
 
 	if (!list) {
 		list_len = 32;
-		list = ckmalloc(list_len * sizeof(*list));
+		list = ckmalloc(psh, list_len * sizeof(*list));
 	}
 
 	for (vpp = psh->vartab ; vpp < psh->vartab + VTABSIZE ; vpp++) {
@@ -627,7 +642,7 @@ showvars(shinstance *psh, const char *name, int flag, int show_value)
 			if (vp->flags & VUNSET && !(show_value & 2))
 				continue;
 			if (count >= list_len) {
-				list = ckrealloc(list,
+				list = ckrealloc(psh, list,
 					(list_len << 1) * sizeof(*list));
 				list_len <<= 1;
 			}
@@ -722,17 +737,17 @@ mklocal(shinstance *psh, const char *name, int flags)
 	struct var *vp;
 
 	INTOFF;
-	lvp = ckmalloc(sizeof (struct localvar));
+	lvp = ckmalloc(psh, sizeof (struct localvar));
 	if (name[0] == '-' && name[1] == '\0') {
 		char *p;
-		p = ckmalloc(sizeof_optlist);
+		p = ckmalloc(psh, sizeof_optlist);
 		lvp->text = memcpy(p, psh->optlist, sizeof_optlist);
 		vp = NULL;
 	} else {
 		vp = find_var(psh, name, &vpp, NULL);
 		if (vp == NULL) {
 			if (strchr(name, '='))
-				setvareq(psh, savestr(name), VSTRFIXED|flags);
+				setvareq(psh, savestr(psh, name), VSTRFIXED|flags);
 			else
 				setvar(psh, name, NULL, VSTRFIXED|flags);
 			vp = *vpp;	/* the new variable */
@@ -743,7 +758,7 @@ mklocal(shinstance *psh, const char *name, int flags)
 			lvp->flags = vp->flags;
 			vp->flags |= VSTRFIXED|VTEXTFIXED;
 			if (name[vp->name_len] == '=')
-				setvareq(psh, savestr(name), flags);
+				setvareq(psh, savestr(psh, name), flags);
 		}
 	}
 	lvp->vp = vp;
@@ -769,18 +784,18 @@ poplocalvars(shinstance *psh)
 		TRACE((psh, "poplocalvar %s", vp ? vp->text : "-"));
 		if (vp == NULL) {	/* $- saved */
 			memcpy(psh->optlist, lvp->text, sizeof_optlist);
-			ckfree(lvp->text);
+			ckfree(psh, lvp->text);
 		} else if ((lvp->flags & (VUNSET|VSTRFIXED)) == VUNSET) {
 			(void)unsetvar(psh, vp->text, 0);
 		} else {
 			if (vp->func && (vp->flags & VNOFUNC) == 0)
 				(*vp->func)(psh, lvp->text + vp->name_len + 1);
 			if ((vp->flags & VTEXTFIXED) == 0)
-				ckfree(vp->text);
+				ckfree(psh, vp->text);
 			vp->flags = lvp->flags;
 			vp->text = lvp->text;
 		}
-		ckfree(lvp);
+		ckfree(psh, lvp);
 	}
 }
 
@@ -859,9 +874,9 @@ unsetvar(shinstance *psh, const char *s, int unexport)
 		vp->flags |= VUNSET;
 		if ((vp->flags & VSTRFIXED) == 0) {
 			if ((vp->flags & VTEXTFIXED) == 0)
-				ckfree(vp->text);
+				ckfree(psh, vp->text);
 			*vpp = vp->next;
-			ckfree(vp);
+			ckfree(psh, vp);
 		}
 	}
 	INTON;

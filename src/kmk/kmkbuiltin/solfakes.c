@@ -1,10 +1,10 @@
-/* $Id: solfakes.c 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * Fake Unix stuff for Solaris.
  */
 
 /*
- * Copyright (c) 2005-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2005-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *
@@ -63,11 +63,11 @@ int vasprintf(char **strp, const char *fmt, va_list va)
 
 #ifdef va_copy
         va_copy(va2, va);
-        rc = snprintf(psz, cb, fmt, va2);
+        rc = vsnprintf(psz, cb, fmt, va2);
         va_end(va2);
 #else
         va2 = va;
-        rc = snprintf(psz, cb, fmt, va2);
+        rc = vsnprintf(psz, cb, fmt, va2);
 #endif
         if (rc < 0 || (size_t)rc < cb)
             break;

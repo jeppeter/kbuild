@@ -1,10 +1,10 @@
-# $Id: TARBZ2.kmk 2326 2009-04-10 16:18:27Z bird $
+# $Id$
 ## @file
 # kBuild Tool Config - tar.bz2 unpacker.
 #
 
 #
-# Copyright (c) 2006-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+# Copyright (c) 2006-2017 knut st. osmundsen <bird-kBuild-spam-xviiv@anduin.net>
 #
 # This file is part of kBuild.
 #

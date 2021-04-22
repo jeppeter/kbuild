@@ -68,9 +68,8 @@ volatile int suppressint;
 volatile int intpending;
 char *commandname;*/
 
-
-static void exverror(shinstance *psh, int, const char *, va_list)
-    __attribute__((__noreturn__));
+SH_NORETURN_1
+static void exverror(shinstance *psh, int, const char *, va_list) SH_NORETURN_2;
 
 /*
  * Called to raise an exception.  Since C doesn't include exceptions, we
@@ -78,7 +77,7 @@ static void exverror(shinstance *psh, int, const char *, va_list)
  * stored in the global variable "exception".
  */
 
-void
+SH_NORETURN_1 void
 exraise(shinstance *psh, int e)
 {
 	if (psh->handler == NULL)
@@ -138,7 +137,7 @@ exvwarning(shinstance *psh, int sv_errno, const char *msg, va_list ap)
 			outfmt(&psh->errout, ": ");
 	}
 	if (sv_errno >= 0)
-		outfmt(&psh->errout, "%s", strerror(sv_errno));
+		outfmt(&psh->errout, "%s", sh_strerror(psh, sv_errno));
 	out2c(psh, '\n');
 	flushout(&psh->errout);
 }
@@ -156,8 +155,15 @@ exverror(shinstance *psh, int cond, const char *msg, va_list ap)
 
 #ifdef DEBUG
 	if (msg) {
+		va_list va2;
 		TRACE((psh, "exverror(%d, \"", cond));
-		TRACEV((psh, msg, ap));
+# ifdef va_copy /* MSC 2010 still doesn't have va_copy. sigh. */
+		va_copy(va2, ap);
+# else
+		va2 = ap;
+# endif
+		TRACEV((psh, msg, va2));
+		va_end(va2);
 		TRACE((psh, "\") pid=%d\n", sh_getpid(psh)));
 	} else
 		TRACE((psh, "exverror(%d, NULL) pid=%d\n", cond, sh_getpid(psh)));
@@ -171,7 +177,7 @@ exverror(shinstance *psh, int cond, const char *msg, va_list ap)
 }
 
 
-void
+SH_NORETURN_1 void
 error(shinstance *psh, const char *msg, ...)
 {
 	va_list ap;
@@ -183,7 +189,7 @@ error(shinstance *psh, const char *msg, ...)
 }
 
 
-void
+SH_NORETURN_1 void
 exerror(shinstance *psh, int cond, const char *msg, ...)
 {
 	va_list ap;
@@ -198,14 +204,14 @@ exerror(shinstance *psh, int cond, const char *msg, ...)
  * error/warning routines for external builtins
  */
 
-void
+SH_NORETURN_1 void
 sh_exit(shinstance *psh, int rval)
 {
 	psh->exerrno = rval & 255;
 	exraise(psh, EXEXEC);
 }
 
-void
+SH_NORETURN_1 void
 sh_err(shinstance *psh, int status, const char *fmt, ...)
 {
 	va_list ap;
@@ -216,14 +222,14 @@ sh_err(shinstance *psh, int status, const char *fmt, ...)
 	sh_exit(psh, status);
 }
 
-void
+SH_NORETURN_1 void
 sh_verr(shinstance *psh, int status, const char *fmt, va_list ap)
 {
 	exvwarning(psh, errno, fmt, ap);
 	sh_exit(psh, status);
 }
 
-void
+SH_NORETURN_1 void
 sh_errx(shinstance *psh, int status, const char *fmt, ...)
 {
 	va_list ap;
@@ -234,7 +240,7 @@ sh_errx(shinstance *psh, int status, const char *fmt, ...)
 	sh_exit(psh, status);
 }
 
-void
+SH_NORETURN_1 void
 sh_verrx(shinstance *psh, int status, const char *fmt, va_list ap)
 {
 	exvwarning(psh, -1, fmt, ap);

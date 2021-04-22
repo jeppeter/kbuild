@@ -40,6 +40,7 @@
 
 /* Define to 1 if you have the `bsd_signal' function. */
 #define HAVE_BSD_SIGNAL 1
+#define HAVE_DECL_BSD_SIGNAL 1
 
 /* Use case insensitive file names */
 /* #undef HAVE_CASE_INSENSITIVE_FS */
@@ -141,6 +142,9 @@
 /* Define to 1 if you have the `pipe' function. */
 #define HAVE_PIPE 1
 
+/* Define to 1 if you have the `pselect' function. */
+#define HAVE_PSELECT 1
+
 /* Define to 1 if you have the `pstat_getdynamic' function. */
 /* #undef HAVE_PSTAT_GETDYNAMIC */
 
@@ -200,6 +204,15 @@
 
 /* Define to 1 if you have the `strcmpi' function. */
 /* #undef HAVE_STRCMPI */
+
+/* Define to 1 if you have the `strncasecmp' function. */
+#define HAVE_STRNCASECMP 1
+
+/* Define to 1 if you have the `strncmpi' function. */
+/* #undef HAVE_STRNCMPI */
+
+/* Define to 1 if you have the `strncmp' function. */
+/* #undef HAVE_STRNICMP */
 
 /* Define to 1 if you have the `strcoll' function and it is properly defined.
    */
@@ -314,13 +327,13 @@
 #define PACKAGE_NAME "GNU make"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "GNU make 3.81.90"
+#define PACKAGE_STRING "GNU make 3.82"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "make"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "3.81.90"
+#define PACKAGE_VERSION "3.82"
 
 /* Define to the character that separates directories in PATH. */
 #define PATH_SEPARATOR_CHAR ':'
@@ -357,7 +370,8 @@
 #define STDC_HEADERS 1
 
 /* Define if struct stat contains a nanoseconds field */
-#define ST_MTIM_NSEC tv_nsec
+#define ST_MTIM_NSEC st_mtim.tv_nsec
+#define ST_ATIM_NSEC st_atim.tv_nsec
 
 /* Define to 1 on System V Release 4. */
 /* #undef SVR4 */
@@ -373,7 +387,7 @@
 /* #undef UMAX4_3 */
 
 /* Version number of package */
-#define VERSION "3.81.90"
+#define VERSION "3.82"
 
 /* Use platform specific coding */
 /* #undef WINDOWS32 */

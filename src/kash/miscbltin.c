@@ -58,11 +58,12 @@ __RCSID("$NetBSD: miscbltin.c,v 1.35 2005/03/19 14:22:50 dsl Exp $");
 #include "miscbltin.h"
 #include "mystring.h"
 #include "shinstance.h"
+#include "shfile.h"
 
 #undef rflag
 
-void *bsd_setmode(shinstance *psh, const char *p);
-mode_t bsd_getmode(const void *bbox, mode_t omode);
+void *kash_setmode(shinstance *psh, const char *p);
+mode_t kash_getmode(const void *bbox, mode_t omode);
 
 
 /*
@@ -106,7 +107,7 @@ readcmd(shinstance *psh, int argc, char **argv)
 			rflag = 1;
 	}
 
-	if (prompt && isatty(0)) {
+	if (prompt && shfile_isatty(&psh->fdtab, 0)) {
 		out2str(psh, prompt);
 		output_flushall(psh);
 	}
@@ -219,10 +220,7 @@ umaskcmd(shinstance *psh, int argc, char **argv)
 		symbolic_mode = 1;
 	}
 
-	INTOFF;
-	mask = umask(0);
-	umask(mask);
-	INTON;
+	mask = shfile_get_umask(&psh->fdtab);
 
 	if ((ap = *psh->argptr) == NULL) {
 		if (symbolic_mode) {
@@ -267,20 +265,20 @@ umaskcmd(shinstance *psh, int argc, char **argv)
 					error(psh, "Illegal number: %s", argv[1]);
 				mask = (mask << 3) + (*ap - '0');
 			} while (*++ap != '\0');
-			umask(mask);
+			shfile_set_umask(&psh->fdtab, mask);
 		} else {
 			void *set;
 
 			INTOFF;
-			if ((set = bsd_setmode(psh, ap)) != 0) {
-				mask = bsd_getmode(set, ~mask & 0777);
-				ckfree(set);
+			if ((set = kash_setmode(psh, ap)) != 0) {
+				mask = kash_getmode(set, ~mask & 0777);
+				ckfree(psh, set);
 			}
 			INTON;
 			if (!set)
 				error(psh, "Illegal mode: %s", ap);
 
-			umask(~mask & 0777);
+			shfile_set_umask(&psh->fdtab, ~mask & 0777);
 		}
 	}
 	return 0;
@@ -389,8 +387,9 @@ ulimitcmd(shinstance *psh, int argc, char **argv)
 
 			while ((c = *p++) >= '0' && c <= '9')
 			{
+				shrlim_t const prev = val;
 				val = (val * 10) + (long)(c - '0');
-				if (val < (shrlim_t) 0)
+				if (val < prev)
 					break;
 			}
 			if (c)
@@ -425,7 +424,7 @@ ulimitcmd(shinstance *psh, int argc, char **argv)
 		if (how & SOFT)
 			limit.rlim_cur = val;
 		if (sh_setrlimit(psh, l->cmd, &limit) < 0)
-			error(psh, "error setting limit (%s)", strerror(errno));
+			error(psh, "error setting limit (%s)", sh_strerror(psh, errno));
 	} else {
 		if (how & SOFT)
 			val = limit.rlim_cur;

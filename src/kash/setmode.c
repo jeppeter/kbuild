@@ -93,7 +93,7 @@ static void	 dumpmode(BITCMD *);
  * bits) followed by a '+' (set bits).
  */
 mode_t
-bsd_getmode(const void *bbox, mode_t omode)
+kash_getmode(const void *bbox, mode_t omode)
 {
 	const BITCMD *set;
 	mode_t clrval, newmode, value;
@@ -166,9 +166,9 @@ common:			if (set->cmd2 & CMD2_CLR) {
 	if (set >= endset) {						\
 		BITCMD *newset;						\
 		setlen += SET_LEN_INCR;					\
-		newset = realloc(saveset, sizeof(BITCMD) * setlen);	\
+		newset = sh_realloc(NULL, saveset, sizeof(BITCMD) * setlen);	\
 		if (newset == NULL) {					\
-			free(saveset);					\
+			sh_free(NULL, saveset);					\
 			return (NULL);					\
 		}							\
 		set = newset + (set - saveset);				\
@@ -181,7 +181,7 @@ common:			if (set->cmd2 & CMD2_CLR) {
 #define	STANDARD_BITS	(S_ISUID|S_ISGID|S_IRWXU|S_IRWXG|S_IRWXO)
 
 void *
-bsd_setmode(shinstance *psh, const char *p)
+kash_setmode(shinstance *psh, const char *p)
 {
 	int perm, who;
 	char op, *ep;
@@ -201,7 +201,7 @@ bsd_setmode(shinstance *psh, const char *p)
 
 	setlen = SET_LEN + 2;
 
-	if ((set = malloc(sizeof(BITCMD) * setlen)) == NULL)
+	if ((set = sh_malloc(NULL, sizeof(BITCMD) * setlen)) == NULL)
 		return (NULL);
 	saveset = set;
 	endset = set + (setlen - 2);
@@ -213,7 +213,7 @@ bsd_setmode(shinstance *psh, const char *p)
 	if (isdigit((unsigned char)*p)) {
 		perm = (mode_t)strtol(p, &ep, 8);
 		if (*ep || perm & ~(STANDARD_BITS|S_ISTXT)) {
-			free(saveset);
+			sh_free(NULL, saveset);
 			return (NULL);
 		}
 		ADDCMD('=', (STANDARD_BITS|S_ISTXT), perm, mask);
@@ -247,7 +247,7 @@ bsd_setmode(shinstance *psh, const char *p)
 		}
 
 getop:		if ((op = *p++) != '+' && op != '-' && op != '=') {
-			free(saveset);
+			sh_free(NULL, saveset);
 			return (NULL);
 		}
 		if (op == '=')
@@ -367,7 +367,7 @@ addcmd(set, op, who, oparg, mask)
 	case '-':
 	case 'X':
 		set->cmd = op;
-		set->bits = (who ? who : mask) & oparg;
+		set->bits = (who ? (unsigned int)who : mask) & (unsigned int)oparg;
 		break;
 
 	case 'u':

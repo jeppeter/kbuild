@@ -1,31 +1,40 @@
-/* $Id: kDep.c 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * kDep - Common Dependency Managemnt Code.
  */
 
 /*
- * Copyright (c) 2004-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2004-2013 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
- * This file is part of kBuild.
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
  *
- * kBuild is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3 of the License, or
- * (at your option) any later version.
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
  *
- * kBuild is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
  *
- * You should have received a copy of the GNU General Public License
- * along with kBuild.  If not, see <http://www.gnu.org/licenses/>
- *
+ * Alternatively, the content of this file may be used under the terms of the
+ * GPL version 2 or later, or LGPL version 2.1 or later.
  */
+
 
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#ifdef KMK /* For when it gets compiled and linked into kmk. */
+# include "makeint.h"
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,9 +43,13 @@
 #include <limits.h>
 #include <sys/stat.h>
 #include "k/kDefs.h"
+#include "k/kTypes.h"
 #if K_OS == K_OS_WINDOWS
-# include <windows.h>
- extern void nt_fullpath(const char *pszPath, char *pszFull, size_t cchFull); /* nt_fullpath.c */
+# define USE_WIN_MMAP
+# include <io.h>
+# include <Windows.h>
+# include "nt_fullpath.h"
+# include "nt/ntstat.h"
 #else
 # include <dirent.h>
 # include <unistd.h>
@@ -45,12 +58,47 @@
 
 #include "kDep.h"
 
+#ifdef KWORKER
+extern int kwFsPathExists(const char *pszPath);
+#endif
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
-/** List of dependencies. */
-static PDEP g_pDeps = NULL;
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+/* For the GNU/hurd weirdo. */
+#if !defined(PATH_MAX) && !defined(_MAX_PATH)
+# define PATH_MAX 4096
+#endif
+
+
+/**
+ * Initializes the dep instance.
+ *
+ * @param   pThis       The dep instance to init.
+ */
+void depInit(PDEPGLOBALS pThis)
+{
+    pThis->pDeps = NULL;
+}
+
+
+/**
+ * Cleans up the dep instance (frees resources).
+ *
+ * @param   pThis       The dep instance to cleanup.
+ */
+void depCleanup(PDEPGLOBALS pThis)
+{
+    PDEP pDep = pThis->pDeps;
+    pThis->pDeps = NULL;
+    while (pDep)
+    {
+        PDEP pFree = pDep;
+        pDep = pDep->pNext;
+        free(pFree);
+    }
+}
 
 
 /**
@@ -112,7 +160,7 @@ static void fixcase(char *pszFilename)
          * Find the next slash (or end of string) and terminate the string there.
          */
         while (*psz != '/' && *psz)
-            *psz++;
+            psz++;
         chSlash = *psz;
         *psz = '\0';
 
@@ -169,14 +217,15 @@ static void fixcase(char *pszFilename)
 /**
  * 'Optimizes' and corrects the dependencies.
  */
-void depOptimize(int fFixCase, int fQuiet)
+void depOptimize(PDEPGLOBALS pThis, int fFixCase, int fQuiet, const char *pszIgnoredExt)
 {
     /*
      * Walk the list correct the names and re-insert them.
      */
-    PDEP pDepOrg = g_pDeps;
-    PDEP pDep = g_pDeps;
-    g_pDeps = NULL;
+    size_t  cchIgnoredExt = pszIgnoredExt ? strlen(pszIgnoredExt) : 0;
+    PDEP    pDepOrg = pThis->pDeps;
+    PDEP    pDep = pThis->pDeps;
+    pThis->pDeps = NULL;
     for (; pDep; pDep = pDep->pNext)
     {
 #ifndef PATH_MAX
@@ -185,7 +234,9 @@ void depOptimize(int fFixCase, int fQuiet)
         char        szFilename[PATH_MAX + 1];
 #endif
         char       *pszFilename;
+#if !defined(KWORKER) && !defined(KMK)
         struct stat s;
+#endif
 
         /*
          * Skip some fictive names like <built-in> and <command line>.
@@ -194,6 +245,14 @@ void depOptimize(int fFixCase, int fQuiet)
             &&  pDep->szFilename[pDep->cchFilename - 1] == '>')
             continue;
         pszFilename = pDep->szFilename;
+
+        /*
+         * Skip pszIgnoredExt if given.
+         */
+        if (   pszIgnoredExt
+            && pDep->cchFilename > cchIgnoredExt
+            && memcmp(&pDep->szFilename[pDep->cchFilename - cchIgnoredExt], pszIgnoredExt, cchIgnoredExt) == 0)
+            continue;
 
 #if K_OS != K_OS_OS2 && K_OS != K_OS_WINDOWS
         /*
@@ -210,7 +269,7 @@ void depOptimize(int fFixCase, int fQuiet)
         if (fFixCase)
         {
 #if K_OS == K_OS_WINDOWS
-            nt_fullpath(pszFilename, szFilename, sizeof(szFilename));
+            nt_fullpath_cached(pszFilename, szFilename, sizeof(szFilename));
             fixslash(szFilename);
 #else
             strcpy(szFilename, pszFilename);
@@ -223,7 +282,16 @@ void depOptimize(int fFixCase, int fQuiet)
         /*
          * Check that the file exists before we start depending on it.
          */
-        if (stat(pszFilename, &s))
+        errno = 0;
+#ifdef KWORKER
+        if (!kwFsPathExists(pszFilename))
+#elif defined(KMK)
+        if (!file_exists_p(pszFilename))
+#elif K_OS == K_OS_WINDOWS
+        if (birdStatModTimeOnly(pszFilename, &s.st_mtim, 1 /*fFollowLink*/) != 0)
+#else
+        if (stat(pszFilename, &s) != 0)
+#endif
         {
             if (   !fQuiet
                 || errno != ENOENT
@@ -241,7 +309,7 @@ void depOptimize(int fFixCase, int fQuiet)
         /*
          * Insert the corrected dependency.
          */
-        depAdd(pszFilename, strlen(pszFilename));
+        depAdd(pThis, pszFilename, strlen(pszFilename));
     }
 
     /*
@@ -259,13 +327,13 @@ void depOptimize(int fFixCase, int fQuiet)
 /**
  * Prints the dependency chain.
  *
- * @returns Pointer to the allocated dependency.
+ * @param   pThis       The 'dep' instance.
  * @param   pOutput     Output stream.
  */
-void depPrint(FILE *pOutput)
+void depPrint(PDEPGLOBALS pThis, FILE *pOutput)
 {
     PDEP pDep;
-    for (pDep = g_pDeps; pDep; pDep = pDep->pNext)
+    for (pDep = pThis->pDeps; pDep; pDep = pDep->pNext)
         fprintf(pOutput, " \\\n\t%s", pDep->szFilename);
     fprintf(pOutput, "\n\n");
 }
@@ -273,11 +341,14 @@ void depPrint(FILE *pOutput)
 
 /**
  * Prints empty dependency stubs for all dependencies.
+ *
+ * @param   pThis       The 'dep' instance.
+ * @param   pOutput     Output stream.
  */
-void depPrintStubs(FILE *pOutput)
+void depPrintStubs(PDEPGLOBALS pThis, FILE *pOutput)
 {
     PDEP pDep;
-    for (pDep = g_pDeps; pDep; pDep = pDep->pNext)
+    for (pDep = pThis->pDeps; pDep; pDep = pDep->pNext)
         fprintf(pOutput, "%s:\n\n", pDep->szFilename);
 }
 
@@ -293,12 +364,12 @@ void depPrintStubs(FILE *pOutput)
    experimenting with different constants, and turns out to be a prime.
    this is one of the algorithms used in berkeley db (see sleepycat) and
    elsewhere. */
-static unsigned sdbm(const char *str)
+static unsigned sdbm(const char *str, size_t size)
 {
     unsigned hash = 0;
     int c;
 
-    while ((c = *(unsigned const char *)str++))
+    while (size-- > 0 && (c = *(unsigned const char *)str++))
         hash = c + (hash << 6) + (hash << 16) - hash;
 
     return hash;
@@ -309,20 +380,21 @@ static unsigned sdbm(const char *str)
  * Adds a dependency.
  *
  * @returns Pointer to the allocated dependency.
- * @param   pszFilename     The filename.
+ * @param   pThis       The 'dep' instance.
+ * @param   pszFilename     The filename. Does not need to be terminated.
  * @param   cchFilename     The length of the filename.
  */
-PDEP depAdd(const char *pszFilename, size_t cchFilename)
+PDEP depAdd(PDEPGLOBALS pThis, const char *pszFilename, size_t cchFilename)
 {
-    unsigned uHash = sdbm(pszFilename);
-    PDEP    pDep;
-    PDEP    pDepPrev;
+    unsigned    uHash = sdbm(pszFilename, cchFilename);
+    PDEP        pDep;
+    PDEP        pDepPrev;
 
     /*
      * Check if we've already got this one.
      */
     pDepPrev = NULL;
-    for (pDep = g_pDeps; pDep; pDepPrev = pDep, pDep = pDep->pNext)
+    for (pDep = pThis->pDeps; pDep; pDepPrev = pDep, pDep = pDep->pNext)
         if (    pDep->uHash == uHash
             &&  pDep->cchFilename == cchFilename
             &&  !memcmp(pDep->szFilename, pszFilename, cchFilename))
@@ -340,7 +412,8 @@ PDEP depAdd(const char *pszFilename, size_t cchFilename)
     }
 
     pDep->cchFilename = cchFilename;
-    memcpy(pDep->szFilename, pszFilename, cchFilename + 1);
+    memcpy(pDep->szFilename, pszFilename, cchFilename);
+    pDep->szFilename[cchFilename] = '\0';
     pDep->uHash = uHash;
 
     if (pDepPrev)
@@ -350,25 +423,138 @@ PDEP depAdd(const char *pszFilename, size_t cchFilename)
     }
     else
     {
-        pDep->pNext = g_pDeps;
-        g_pDeps = pDep;
+        pDep->pNext = pThis->pDeps;
+        pThis->pDeps = pDep;
     }
     return pDep;
 }
 
 
 /**
- * Frees the current dependency chain.
+ * Performs a hexdump.
  */
-void depCleanup(void)
+void depHexDump(const KU8 *pb, size_t cb, size_t offBase)
 {
-    PDEP pDep = g_pDeps;
-    g_pDeps = NULL;
-    while (pDep)
+    const unsigned      cchWidth = 16;
+    size_t              off = 0;
+    while (off < cb)
     {
-        PDEP pFree = pDep;
-        pDep = pDep->pNext;
-        free(pFree);
+        unsigned i;
+        printf("%s%0*lx %04lx:", off ? "\n" : "", (int)sizeof(pb) * 2,
+               (unsigned long)offBase + (unsigned long)off, (unsigned long)off);
+        for (i = 0; i < cchWidth && off + i < cb ; i++)
+            printf(off + i < cb ? !(i & 7) && i ? "-%02x" : " %02x" : "   ", pb[i]);
+
+        while (i++ < cchWidth)
+                printf("   ");
+        printf(" ");
+
+        for (i = 0; i < cchWidth && off + i < cb; i++)
+        {
+            const KU8 u8 = pb[i];
+            printf("%c", u8 < 127 && u8 >= 32 ? u8 : '.');
+        }
+        off += cchWidth;
+        pb  += cchWidth;
     }
+    printf("\n");
+}
+
+
+/**
+ * Reads the file specified by the pInput file stream into memory.
+ *
+ * @returns The address of the memory mapping on success. This must be
+ *          freed by calling depFreeFileMemory.
+ *
+ * @param   pInput      The file stream to load or map into memory.
+ * @param   pcbFile     Where to return the mapping (file) size.
+ * @param   ppvOpaque   Opaque data when mapping, otherwise NULL.
+ */
+void *depReadFileIntoMemory(FILE *pInput, size_t *pcbFile, void **ppvOpaque)
+{
+    void       *pvFile;
+    long        cbFile;
+
+    /*
+     * Figure out file size.
+     */
+#if defined(_MSC_VER)
+    cbFile = _filelength(fileno(pInput));
+    if (cbFile < 0)
+#else
+    if (    fseek(pInput, 0, SEEK_END) < 0
+        ||  (cbFile = ftell(pInput)) < 0
+        ||  fseek(pInput, 0, SEEK_SET))
+#endif
+    {
+        fprintf(stderr, "kDep: error: Failed to determin file size.\n");
+        return NULL;
+    }
+    if (pcbFile)
+        *pcbFile = cbFile;
+
+    /*
+     * Try mmap first.
+     */
+#ifdef USE_WIN_MMAP
+    {
+        HANDLE hMapObj = CreateFileMapping((HANDLE)_get_osfhandle(fileno(pInput)),
+                                           NULL, PAGE_READONLY, 0, cbFile, NULL);
+        if (hMapObj != NULL)
+        {
+            pvFile = MapViewOfFile(hMapObj, FILE_MAP_READ, 0, 0, cbFile);
+            if (pvFile)
+            {
+                *ppvOpaque = hMapObj;
+                return pvFile;
+            }
+            fprintf(stderr, "kDep: warning: MapViewOfFile failed, %d.\n", GetLastError());
+            CloseHandle(hMapObj);
+        }
+        else
+            fprintf(stderr, "kDep: warning: CreateFileMapping failed, %d.\n", GetLastError());
+    }
+
+#endif
+
+    /*
+     * Allocate memory and read the file.
+     */
+    pvFile = malloc(cbFile + 1);
+    if (pvFile)
+    {
+        if (fread(pvFile, cbFile, 1, pInput))
+        {
+            ((KU8 *)pvFile)[cbFile] = '\0';
+            *ppvOpaque = NULL;
+            return pvFile;
+        }
+        fprintf(stderr, "kDep: error: Failed to read %ld bytes.\n", cbFile);
+        free(pvFile);
+    }
+    else
+        fprintf(stderr, "kDep: error: Failed to allocate %ld bytes (file mapping).\n", cbFile);
+    return NULL;
+}
+
+
+/**
+ * Free resources allocated by depReadFileIntoMemory.
+ *
+ * @param   pvFile      The address of the memory mapping.
+ * @param   pvOpaque    The opaque value returned together with the mapping.
+ */
+void depFreeFileMemory(void *pvFile, void *pvOpaque)
+{
+#if defined(USE_WIN_MMAP)
+    if (pvOpaque)
+    {
+        UnmapViewOfFile(pvFile);
+        CloseHandle(pvOpaque);
+        return;
+    }
+#endif
+    free(pvFile);
 }
 

@@ -1,10 +1,10 @@
-# $Id: W2K3DDKAMD64.kmk 2243 2009-01-10 02:24:02Z bird $
+# $Id$
 ## @file
 # kBuild SDK - The Microsoft Windows 2003 DDK, targeting amd64.
 #
 
 #
-# Copyright (c) 2006-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+# Copyright (c) 2006-2017 knut st. osmundsen <bird-kBuild-spam-xviiv@anduin.net>
 #
 # This file is part of kBuild.
 #

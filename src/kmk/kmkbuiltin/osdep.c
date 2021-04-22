@@ -1,10 +1,10 @@
-/* $Id: osdep.c 2243 2009-01-10 02:24:02Z bird $ */
+/* $Id$ */
 /** @file
  * Include all the OS dependent bits when bootstrapping.
  */
 
 /*
- * Copyright (c) 2005-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+ * Copyright (c) 2005-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
  *
  * This file is part of kBuild.
  *
@@ -37,6 +37,12 @@
 
 #elif defined(__APPLE__)
 # include "darwin.c"
+
+#elif defined(__OpenBSD__)
+# include "openbsd.c"
+
+#elif defined(__HAIKU__)
+# include "haikufakes.c"
 
 #endif
 

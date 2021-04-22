@@ -37,6 +37,11 @@
 
 #include "utils.h"
 
+#ifdef KBUILD_OS_WINDOWS /* bird: Way faster console output! */
+# include "console.h"
+# define fwrite maybe_con_fwrite
+#endif
+
 const char *myname;
 
 /* Store information about files opened with ck_fopen

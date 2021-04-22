@@ -56,7 +56,7 @@ typedef __SIZE_TYPE__ __size_t;
 #  else
 /* This is a guess.  */
 /*hb
- *	Conflicts with DECCs aready defined type __size_t.
+ *	Conflicts with DECCs already defined type __size_t.
  *	Defining an own type with a name beginning with '__' is no good.
  *	Anyway if DECC is used and __SIZE_T is defined then __size_t is
  *	already defined (and I hope it's exactly the one we need here).
@@ -135,6 +135,11 @@ typedef struct
     int (*gl_stat) __PMT ((__const char *, struct stat *, ...));
 #else
     int (*gl_stat) __PMT ((__const char *, struct stat *));
+#endif
+#ifdef KMK
+# define GLOB_WITH_EXTENDED_KMK_MEMBERS
+    int (*gl_exists) __PMT ((__const char *));
+    int (*gl_isdir) __PMT ((__const char *));
 #endif
   } glob_t;
 

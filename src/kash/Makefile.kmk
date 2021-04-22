@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk 2243 2009-01-10 02:24:02Z bird $
+# $Id$
 ## @file
 # Sub-makefile for kash.
 #
 
 #
-# Copyright (c) 2005-2009 knut st. osmundsen <bird-kBuild-spamix@anduin.net>
+# Copyright (c) 2005-2010 knut st. osmundsen <bird-kBuild-spamx@anduin.net>
 #
 # This file is part of kBuild.
 #
@@ -30,28 +30,42 @@ include $(KBUILD_PATH)/subheader.kmk
 # The program.
 #
 PROGRAMS += kash
-kash_TEMPLATE = BIN
+kash_TEMPLATE = BIN-THREADED
+kash_NAME = kmk_ash
+kash_ASTOOL = YASM
 kash_DEFS = lint SHELL SMALL
-kash_DEFS += SH_STUB_MODE # for the time being.
+kash_DEFS += SH_FORKED_MODE
 kash_DEFS.debug = DEBUG=2
+kash_DEFS.haiku = BSD
 kash_DEFS.linux = BSD
 kash_DEFS.solaris = BSD
 ## @todo bring over PC_SLASHES?
 kash_DEFS.win = \
-	BSD PC_PATH_SEP PC_DRIVE_LETTERS PC_EXE_EXTS YY_NO_UNISTD_H
+	BSD YY_NO_UNISTD_H \
+	SH_DEAL_WITH_CRLF PC_PATH_SEP PC_DRIVE_LETTERS PC_EXE_EXTS EXEC_HASH_BANG_SCRIPT
 kash_DEFS.os2 = \
-	HAVE_SYS_SIGNAME HAVE_SYSCTL_H HAVE_SETPROGNAME \
-	EXEC_HASH_BANG_SCRIPT PC_OS2_LIBPATHS PC_PATH_SEP PC_DRIVE_LETTERS PC_EXE_EXTS
+	HAVE_SYS_SIGNAME HAVE_SYSCTL_H HAVE_SETPROGNAME PC_OS2_LIBPATHS \
+	SH_DEAL_WITH_CRLF PC_PATH_SEP PC_DRIVE_LETTERS PC_EXE_EXTS EXEC_HASH_BANG_SCRIPT
 kash_DEFS.darwin = \
 	HAVE_SYS_SIGNAME HAVE_SYSCTL_H HAVE_SETPROGNAME
 kash_DEFS.dragonfly = \
 	HAVE_SYS_SIGNAME HAVE_SYSCTL_H HAVE_SETPROGNAME
 kash_DEFS.freebsd = \
 	HAVE_SYS_SIGNAME HAVE_SYSCTL_H HAVE_SETPROGNAME
-kash_INCS = $(PATH_kash) . # (the last is because of error.h)
+kash_DEFS.gnukfbsd = HAVE_SYSCTL_H
+kash_DEFS.netbsd = \
+	HAVE_SYS_SIGNAME HAVE_SYSCTL_H HAVE_SETPROGNAME
+kash_DEFS.openbsd = \
+	HAVE_SYS_SIGNAME HAVE_SYSCTL_H HAVE_SETPROGNAME
+kash_INCS = $(kash_0_OUTDIR) . # (the last is because of error.h)
+kash_ASFLAGS.win = -g cv8
+kash_ASFLAGS.win.x86   = -f win32
+kash_ASFLAGS.win.amd64 = -f win64
 if "$(USER)" == "bird" && "$(KBUILD_TARGET)" != "win"
 kash_CFLAGS += -std=gnu99
 endif
+kash_CFLAGS.win.amd64 = -GS-
+kash_LDFLAGS.win = -DYNAMICBASE:NO
 kash_SOURCES = \
 	main.c \
 	alias.c \
@@ -79,38 +93,50 @@ kash_SOURCES = \
 	bltin/kill.c \
 	bltin/test.c \
 	\
-	$(PATH_kash)/arith.c \
-	$(PATH_kash)/arith_lex.c \
-	$(PATH_kash)/builtins.c \
-	$(PATH_kash)/init.c \
-	$(PATH_kash)/nodes.c \
+	$(kash_0_OUTDIR)/builtins.c \
+	$(kash_0_OUTDIR)/init.c \
+	$(kash_0_OUTDIR)/nodes.c \
 	\
 	setmode.c \
 	shinstance.c \
+	shheap.c \
 	shthread.c \
 	shfile.c
-kash_SOURCES.linux = \
+kash_SOURCES.gnuhurd = \
 	sys_signame.c \
 	strlcpy.c
-kash_SOURCES.win = \
+kash_SOURCES.gnukfbsd = \
+	sys_signame.c \
+	strlcpy.c
+kash_SOURCES.gnuknbsd = \
+	sys_signame.c \
+	strlcpy.c
+kash_SOURCES.haiku = \
+	sys_signame.c \
+	strlcpy.c
+kash_SOURCES.linux = \
 	sys_signame.c \
 	strlcpy.c
 kash_SOURCES.solaris = \
 	sys_signame.c \
 	strlcpy.c
+kash_SOURCES.win = \
+	sys_signame.c \
+	strlcpy.c \
+	shfork-win.c \
+	shforkA-win.asm
 
 kash_INTERMEDIATES = \
-	$(PATH_kash)/arith.h \
-	$(PATH_kash)/builtins.h \
-	$(PATH_kash)/nodes.h \
-	$(PATH_kash)/token.h
+	$(kash_0_OUTDIR)/builtins.h \
+	$(kash_0_OUTDIR)/nodes.h \
+	$(kash_0_OUTDIR)/token.h
 kash_CLEAN = \
 	$(kash_INTERMEDIATES) \
-	$(PATH_kash)/arith.c \
-	$(PATH_kash)/arith_lex.c \
-	$(PATH_kash)/builtins.c \
-	$(PATH_kash)/init.c \
-	$(PATH_kash)/nodes.c
+	$(kash_0_OUTDIR)/builtins.c \
+	$(kash_0_OUTDIR)/init.c \
+	$(kash_0_OUTDIR)/nodes.c
+
+kash_main.c_DEFS = KBUILD_SVN_REV=$(KBUILD_SVN_REV)
 
 ##
 ## The manual page.
@@ -120,16 +146,46 @@ kash_CLEAN = \
 #kash.man_SOURCES = sh.1=>kash.1
 
 
-if1of ($(KBUILD_TARGET), win)
+if1of ($(KBUILD_TARGET), win os2)
+ KASH_USE_PREGENERATED_CODE = 1
+endif
+
+ifdef KASH_USE_PREGENERATED_CODE
 
 #
 # Use the pregenerated code.
 #
-kash_ORDERDEPS :=
-kash_INCS += generated
-kash_SOURCES := $(patsubst $(PATH_kash)/%,generated/%,$(kash_SOURCES))
+kash_SOURCES += \
+	$(kash_0_OUTDIR)/arith.c \
+	$(kash_0_OUTDIR)/arith_lex.c
+kash_INTERMEDIATES += \
+	$(kash_0_OUTDIR)/arith.h
 
-else
+define def_copy_generated
+$$$$(kash_0_OUTDIR)/$(src): $(PATH_SUB_CURRENT)/generated/$(src)
+	$$(RM) -f $$@
+	$$(CP) -f $$^ $$@
+endef
+
+$(foreach src, arith.h arith.c arith_lex.c builtins.h builtins.c nodes.h nodes.c token.h init.c,\
+$(eval $(def_copy_generated)))
+
+else # !KASH_USE_PREGENERATED_CODE
+
+#
+# Generate the code on the fly.
+#
+
+USES += lex yacc
+kash_USES = lex yacc
+kash_LEXTOOL = FLEX
+kash_LEXFLAGS = -8
+#kash_YACCTOOL = BISON
+kash_YACCTOOL = YACC
+kash_YACCFLAGS = -ld
+kash_SOURCES += \
+	arith.y \
+	arith_lex.l
 
 #
 # ATTENTION! ATTENTION! ATTENTION!
@@ -140,27 +196,16 @@ else
 # So, when building for the frist time, setting BOOSTRAP_SHELL=/bin/bash is good idea.
 #
 BOOTSTRAP_SHELL ?= $(SHELL)
-ifndef YACC
- YACC := $(firstword $(which byacc) $(which yacc) yacc)
-endif
 
-$$(PATH_kash)/arith.h + $$(PATH_kash)/arith.c: arith.y | $$(dir $$@)
-	$(YACC) -ld $^
-	$(MV) -f y.tab.c $(PATH_kash)/arith.c
-	$(MV) -f y.tab.h $(PATH_kash)/arith.h
-
-$$(PATH_kash)/arith_lex.c: $$(kash_DEFPATH)/arith_lex.l | $$(dir $$@)
-	flex -8 -o$@ $^                     # 8-bit lex scanner for arithmetic
-
-$$(PATH_kash)/builtins.h + $$(PATH_kash)/builtins.c: \
+$$(kash_0_OUTDIR)/builtins.h + $$(kash_0_OUTDIR)/builtins.c: \
 		$$(kash_DEFPATH)/mkbuiltins \
 		$$(kash_DEFPATH)/shell.h \
 		$$(kash_DEFPATH)/builtins.def \
 		| $$(dir $$@)
 	$(BOOTSTRAP_SHELL) $+ $(dir $@)
-	[ -f $(PATH_kash)/builtins.h ]
+	[ -f $(kash_0_OUTDIR)/builtins.h ]
 
-$$(PATH_kash)/nodes.h + $$(PATH_kash)/nodes.c: \
+$$(kash_0_OUTDIR)/nodes.h + $$(kash_0_OUTDIR)/nodes.c: \
 	$$(kash_DEFPATH)/mknodes.sh \
 	$$(kash_DEFPATH)/nodetypes \
 	$$(kash_DEFPATH)/nodes.c.pat \
@@ -168,18 +213,31 @@ $$(PATH_kash)/nodes.h + $$(PATH_kash)/nodes.c: \
 	$(BOOTSTRAP_SHELL) $+ $(dir $@)
 	[ -f $(dir $@)/nodes.h ]
 
-$$(PATH_kash)/token.h: $$(kash_DEFPATH)/mktokens | $$(dir $$@)
+$$(kash_0_OUTDIR)/token.h: $$(kash_DEFPATH)/mktokens | $$(dir $$@)
 	$(BOOTSTRAP_SHELL) $+
 	$(MV) token.h $@
 
-$$(PATH_kash)/init.c: \
+$$(kash_0_OUTDIR)/init.c: \
 		$$(kash_DEFPATH)/mkinit.sh \
-		$$(abspathex $$(filter-out $$(PATH_kash)/%,$$(kash_SOURCES)), $$(kash_DEFPATH)) \
+		$$(abspathex $$(filter-out $$(kash_0_OUTDIR)/%,$$(kash_SOURCES)), $$(kash_DEFPATH)) \
 		| $$(dir $$@)
 	$(BOOTSTRAP_SHELL) $+
 	$(MV) init.c $@
 
+endif # !KASH_USE_PREGENERATED_CODE
+
+#
+# For debugging file handle inheritance on Windows.
+#
+if "$(KBUILD_TARGET)" == win && 0
+PROGRAMS += tstDump
+tstDump_TEMPLATE = BIN
+tstDump_SOURCES = tstDump.c
 endif
 
+# Include the sub-makefile.
+include $(PATH_SUB_CURRENT)/tests/Makefile.kmk
+
 include $(FILE_KBUILD_SUB_FOOTER)
+
 
