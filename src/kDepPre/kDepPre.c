@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: kDepPre.c 3167 2018-03-20 21:47:25Z bird $ */
 /** @file
  * kDepPre - Dependency Generator using Precompiler output.
  */

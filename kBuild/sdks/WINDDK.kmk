@@ -1,4 +1,4 @@
-# $Id$
+# $Id: WINDDK.kmk 3121 2017-10-31 10:58:59Z bird $
 ## @file
 # kBuild SDK - The Microsoft Windows Vista and Server 2008 DDKs.
 #              Defaults to $(KBUILD_TARGET_ARCH). Base SDK.

@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: ntstuff.h 3223 2018-03-31 02:29:56Z bird $ */
 /** @file
  * Definitions, types, prototypes and globals for NT.
  */

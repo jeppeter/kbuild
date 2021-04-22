@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: mscfakes.h 3213 2018-03-30 21:03:28Z bird $ */
 /** @file
  * Unix fakes for MSC.
  */

@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: shfile.h 2546 2011-10-01 19:49:54Z bird $ */
 /** @file
  * File management.
  */

@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: avl.h 2243 2009-01-10 02:24:02Z bird $
  *
  * AVL-Tree (lookalike) declaration.
  *

@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: fts-nt.h 3004 2016-11-05 23:18:51Z bird $ */
 /** @file
  * Header for the NT port of BSD fts.h.
  *

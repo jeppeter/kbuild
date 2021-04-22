@@ -1,4 +1,4 @@
-# $Id$
+# $Id: testcase-ifeq-escape.kmk 3154 2018-03-15 23:35:33Z bird $
 # Testcase for weird 'ifeq' and funny escapes.
 
 ifeq "1        	 \

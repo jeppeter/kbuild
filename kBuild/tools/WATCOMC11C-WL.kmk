@@ -1,4 +1,4 @@
-# $Id$
+# $Id: WATCOMC11C-WL.kmk 3121 2017-10-31 10:58:59Z bird $
 ## @file
 # kBuild Tool Config - Watcom C/C++ v11.0c, using wlink.
 #

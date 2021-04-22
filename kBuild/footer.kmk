@@ -1,4 +1,4 @@
-# $Id$
+# $Id: footer.kmk 3128 2017-12-25 13:33:14Z bird $
 ## @file
 # kBuild - File included at bottom of a makefile.
 #

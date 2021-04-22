@@ -1,4 +1,4 @@
-# $Id$
+# $Id: OS2DDKBASE32.kmk 3121 2017-10-31 10:58:59Z bird $
 ## @file
 #
 # kBuild SDK - The OS/2 DDK, 32-bit base headers and libraries.

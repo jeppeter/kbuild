@@ -1,4 +1,4 @@
-# $Id$
+# $Id: DXSDKX86.kmk 3121 2017-10-31 10:58:59Z bird $
 ## @file
 # kBuild SDK - The Microsoft Direct X SDK, targeting X86.
 #

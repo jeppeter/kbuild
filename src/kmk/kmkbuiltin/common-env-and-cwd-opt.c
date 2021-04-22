@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: common-env-and-cwd-opt.c 3192 2018-03-26 20:25:56Z bird $ */
 /** @file
  * kMk Builtin command - Commmon environment and CWD option handling code.
  */

@@ -1,4 +1,4 @@
-# $Id$
+# $Id: VCC70.kmk 3121 2017-10-31 10:58:59Z bird $
 ## @file
 # kBuild Tool Config - Visual C++ 7.0 (aka Visual Studio .NET), targeting x86.
 #

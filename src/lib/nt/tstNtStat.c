@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: tstNtStat.c 3007 2016-11-06 16:46:43Z bird $ */
 /** @file
  * Manual lstat/stat testcase.
  */

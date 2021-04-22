@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: shthread.h 2413 2010-09-11 17:43:04Z bird $ */
 /** @file
  *
  * Shell thread methods.

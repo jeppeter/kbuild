@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: redirect.c 3247 2018-12-25 21:02:16Z bird $ */
 /** @file
  * kmk_redirect - Do simple program <-> file redirection (++).
  */

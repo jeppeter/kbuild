@@ -1,4 +1,4 @@
-# $Id$
+# $Id: Makefile.kmk 3208 2018-03-29 03:54:02Z bird $
 ## @file
 # Sub-makefile for kmk_time.
 #

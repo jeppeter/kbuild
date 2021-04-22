@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: kmk_time.c 3208 2018-03-29 03:54:02Z bird $ */
 /** @file
  * kmk_time - Time program execution.
  *

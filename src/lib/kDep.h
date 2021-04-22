@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: kDep.h 3167 2018-03-20 21:47:25Z bird $ */
 /** @file
  * kDep - Common Dependency Managemnt Code.
  */

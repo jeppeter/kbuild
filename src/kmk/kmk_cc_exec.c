@@ -1,5 +1,5 @@
 #ifdef CONFIG_WITH_COMPILER
-/* $Id$ */
+/* $Id: kmk_cc_exec.c 3233 2018-09-24 10:39:36Z bird $ */
 /** @file
  * kmk_cc - Make "Compiler".
  */

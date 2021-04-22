@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: kDepIDB.c 3192 2018-03-26 20:25:56Z bird $ */
 /** @file
  * kDepIDB - Extract dependency information from a MS Visual C++ .idb file.
  */

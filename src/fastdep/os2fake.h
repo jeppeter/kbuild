@@ -1,4 +1,4 @@
-/* $Id$
+/* $Id: os2fake.h 2243 2009-01-10 02:24:02Z bird $
  *
  * Structures, defines and function prototypes for the OS/2 fake library.
  *

@@ -1,4 +1,4 @@
-# $Id$
+# $Id: Config.kmk 2343 2009-04-19 21:44:50Z bird $
 ## @file
 # kBuild Example no. 1 - Config.kmk - The global configuration file.
 #

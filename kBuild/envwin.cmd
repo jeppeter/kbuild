@@ -1,5 +1,5 @@
 @echo off
-REM $Id$
+REM $Id: envwin.cmd 3113 2017-10-29 17:16:03Z bird $
 REM REM @file
 REM Environment setup script.
 REM

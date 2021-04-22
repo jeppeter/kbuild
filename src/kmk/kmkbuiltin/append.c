@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: append.c 3246 2018-12-25 21:02:04Z bird $ */
 /** @file
  * kMk Builtin command - append text to file.
  */

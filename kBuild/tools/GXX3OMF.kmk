@@ -1,4 +1,4 @@
-# $Id$
+# $Id: GXX3OMF.kmk 3258 2019-01-03 05:34:09Z bird $
 ## @file
 # kBuild Tool Config - GCC v3 targeting OS/2 OMF, for building C++ code.
 #

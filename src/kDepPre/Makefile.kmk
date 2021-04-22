@@ -1,4 +1,4 @@
-# $Id$
+# $Id: Makefile.kmk 2886 2016-09-06 14:31:46Z bird $
 ## @file
 # Sub-makefile for kDepPre, the precompiler based dependency generator.
 #

@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: kLibTweaker.c 2791 2015-09-15 22:57:44Z bird $ */
 /** @file
  * kLibTweaker - Import library tweaker for windows.
  */
@@ -745,7 +745,7 @@ int main(int argc, char **argv)
             return usage(stdout);
         else if (!strcmp(argv[i], "-V") || !strcmp(argv[i], "--version"))
         {
-            printf("kLibTweaker - kBuild version %d.%d.%d ($Revision$)\n"
+            printf("kLibTweaker - kBuild version %d.%d.%d ($Revision: 2791 $)\n"
                    "Copyright (c) 2007-2015 knut st. osmundsen\n",
                    KBUILD_VERSION_MAJOR, KBUILD_VERSION_MINOR, KBUILD_VERSION_PATCH);
             return 0;

@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: libhello.c 2343 2009-04-19 21:44:50Z bird $ */
 /** @file
  * Example no. 1 - libhello.c - Hello world library.
  */

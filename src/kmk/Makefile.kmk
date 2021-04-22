@@ -1,4 +1,4 @@
-# $Id$
+# $Id: Makefile.kmk 3214 2018-03-30 21:03:40Z bird $
 ## @file
 # Sub-makefile for kmk / GNU Make.
 #

@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: kDepObj.c 3238 2018-12-25 18:07:55Z bird $ */
 /** @file
  * kDepObj - Extract dependency information from an object file.
  */

@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: touch.c 3282 2019-01-05 00:57:52Z bird $ */
 /** @file
  * kmk_touch - Simple touch implementation.
  */

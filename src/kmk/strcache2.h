@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: strcache2.h 2413 2010-09-11 17:43:04Z bird $ */
 /** @file
  * strcache - New string cache.
  */

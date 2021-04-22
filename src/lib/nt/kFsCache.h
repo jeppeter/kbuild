@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: kFsCache.h 3199 2018-03-28 18:56:21Z bird $ */
 /** @file
  * kFsCache.c - NT directory content cache.
  */

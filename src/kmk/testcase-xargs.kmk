@@ -1,4 +1,4 @@
-# $Id$
+# $Id: testcase-xargs.kmk 2413 2010-09-11 17:43:04Z bird $
 ## @file
 # kBuild - testcase for the xargs function.
 #          Requires manual inspection of the output.

@@ -1,4 +1,4 @@
-# $Id$
+# $Id: bootstrap.gmk 3143 2018-03-14 23:00:29Z bird $
 ## @file
 # GNU Make Compatible bootstrap Makefile.
 #

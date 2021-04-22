@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: nt_fullpath_cached.c 2849 2016-08-30 14:28:46Z bird $ */
 /** @file
  * fixcase - fixes the case of paths, windows specific.
  */

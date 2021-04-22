@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: kWorker.c 3200 2018-03-28 20:32:11Z bird $ */
 /** @file
  * kWorker - experimental process reuse worker for Windows.
  *

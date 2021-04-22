@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: kbuild.c 3278 2019-01-04 17:08:23Z bird $ */
 /** @file
  * kBuild specific make functionality.
  */

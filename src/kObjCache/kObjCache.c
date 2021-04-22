@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: kObjCache.c 3239 2018-12-25 20:47:30Z bird $ */
 /** @file
  * kObjCache - Object Cache.
  */
@@ -5112,7 +5112,7 @@ int main(int argc, char **argv)
         }
         else if (!strcmp(argv[i], "-V") || !strcmp(argv[i], "--version"))
         {
-            printf("kObjCache - kBuild version %d.%d.%d ($Revision$)\n"
+            printf("kObjCache - kBuild version %d.%d.%d ($Revision: 3239 $)\n"
                    "Copyright (c) 2007-2012 knut st. osmundsen\n",
                    KBUILD_VERSION_MAJOR, KBUILD_VERSION_MINOR, KBUILD_VERSION_PATCH);
             return 0;

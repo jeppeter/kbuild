@@ -1,4 +1,4 @@
-# $Id$
+# $Id: VCC80AMD64.kmk 3121 2017-10-31 10:58:59Z bird $
 ## @file
 # kBuild Tool Config - Visual C++ 8.0 (aka Visual .NET 2005, or MSC v14), targeting AMD64.
 #

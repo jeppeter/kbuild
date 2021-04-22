@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: ntstat.h 3007 2016-11-06 16:46:43Z bird $ */
 /** @file
  * MSC + NT stat, lstat and fstat implementation and wrappers.
  */

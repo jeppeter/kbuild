@@ -1,4 +1,4 @@
-# $Id$
+# $Id: Makefile.kmk 3062 2017-09-30 11:26:21Z bird $
 ## @file
 # Sub-Makefile for kmk_sed.
 #

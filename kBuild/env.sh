@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id$
+# $Id: env.sh 3295 2019-01-10 16:35:56Z bird $
 ## @file
 # Environment setup script.
 #

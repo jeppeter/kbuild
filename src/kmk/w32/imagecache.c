@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: imagecache.c 3195 2018-03-27 18:09:23Z bird $ */
 /** @file
  * kBuild specific executable image cache for Windows.
  */
