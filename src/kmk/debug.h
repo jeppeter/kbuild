@@ -64,3 +64,13 @@ extern unsigned int job_slots_used;
 #define DB(_l,_x)   do{ if(ISDB(_l)) {printf _x; fflush (stdout);} }while(0)
 
 #endif /* !KMK */
+
+#define DBV(_x)                                                                                   \
+do {                                                                                              \
+	if (ISDB(DB_VERBOSE)) {                                                                       \
+		printf ("[%s:%d]", __FILE__,__LINE__);                                                    \
+		printf _x;                                                                                \
+		printf("\n");                                                                             \
+		fflush(stdout);                                                                           \
+	}                                                                                             \
+}while(0)

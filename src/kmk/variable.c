@@ -18,6 +18,7 @@ this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include <assert.h>
 
+#include "debug.h"
 #include "filedef.h"
 #include "dep.h"
 #include "job.h"
@@ -277,6 +278,8 @@ define_variable_in_set (const char *name, unsigned int length,
   struct variable *v;
   struct variable **var_slot;
   struct variable var_key;
+
+  DBV((_("%s=[%s][%s.%d.%d]"),name,value, flocp ? flocp->filenm : "NULL",flocp ? flocp->lineno : 0 ,flocp ? flocp->offset : 0));
 
 #ifdef KMK
   if (set == NULL || set == &global_variable_set)
