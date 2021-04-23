@@ -1,4 +1,4 @@
-# $Id: ReorderCompilerIncs.kmk 3121 2017-10-31 10:58:59Z bird $
+# $Id$
 ## @file
 # kBuild SDK - Pseudo SDK that inserts the compiler includes a bit earlier.
 #

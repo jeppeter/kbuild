@@ -1,4 +1,4 @@
-/* $Id: quote_argv.h 2912 2016-09-14 13:36:15Z bird $ */
+/* $Id$ */
 /** @file
  * quote_argv - Correctly quote argv for spawn, windows specific.
  */

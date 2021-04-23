@@ -1,4 +1,4 @@
-/* $Id: pe.h 92 2016-09-08 15:31:37Z bird $ */
+/* $Id$ */
 /** @file
  * PE structures, types and defines.
  */

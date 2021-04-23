@@ -1,4 +1,4 @@
-/* $Id: kLdrModMachO.c 112 2018-07-04 09:37:39Z bird $ */
+/* $Id$ */
 /** @file
  * kLdr - The Module Interpreter for the MACH-O format.
  */

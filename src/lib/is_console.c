@@ -1,4 +1,4 @@
-/* $Id: is_console.c 3188 2018-03-24 15:32:26Z bird $ */
+/* $Id$ */
 /** @file
  * is_console - checks if a file descriptor is the console.
  */

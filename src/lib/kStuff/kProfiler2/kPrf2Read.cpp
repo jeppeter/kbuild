@@ -1,4 +1,4 @@
-/* $Id: kPrf2Read.cpp 77 2016-06-22 17:03:55Z bird $ */
+/* $Id$ */
 /** @file
  * kProfiler Mark 2 - The reader and producer of statistics.
  */

@@ -1,4 +1,4 @@
-/* $Id: nthlpcore.c 2998 2016-11-05 19:37:35Z bird $ */
+/* $Id$ */
 /** @file
  * MSC + NT core helpers functions and globals.
  */

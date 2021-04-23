@@ -1,4 +1,4 @@
-/* $Id: maybe_con_fwrite.c 3188 2018-03-24 15:32:26Z bird $ */
+/* $Id$ */
 /** @file
  * maybe_con_write - Optimized console output on windows.
  */

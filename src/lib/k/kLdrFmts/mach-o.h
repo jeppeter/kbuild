@@ -1,4 +1,4 @@
-/* $Id: mach-o.h 63 2013-10-30 02:00:14Z bird $ */
+/* $Id$ */
 /** @file
  * Mach-0 structures, types and defines.
  */

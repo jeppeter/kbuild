@@ -1,4 +1,4 @@
-/* $Id: fts-nt.c 3009 2016-11-07 02:21:59Z bird $ */
+/* $Id$ */
 /** @file
  * Source for the NT port of BSD fts.c.
  *

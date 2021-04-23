@@ -1,4 +1,4 @@
-/* $Id: kRbBase.h 38 2009-11-10 00:01:38Z bird $ */
+/* $Id$ */
 /** @file
  * kRbTmpl - Templated Red-Black Trees, The Mandatory Base Code.
  */

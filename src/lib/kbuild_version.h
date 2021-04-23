@@ -1,4 +1,4 @@
-/* $Id: kbuild_version.h 2851 2016-08-31 17:30:52Z bird $ */
+/* $Id$ */
 /** @file
  * kbuild_version(), helper function.
  */

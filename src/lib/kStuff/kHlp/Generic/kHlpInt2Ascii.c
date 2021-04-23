@@ -1,4 +1,4 @@
-/* $Id: kHlpInt2Ascii.c 113 2018-07-12 11:34:27Z bird $ */
+/* $Id$ */
 /** @file
  * kHlpString - kHlpInt2Ascii.
  */

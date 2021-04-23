@@ -1,4 +1,4 @@
-/* $Id: kHlpEnv.h 29 2009-07-01 20:30:29Z bird $ */
+/* $Id$ */
 /** @file
  * kHlpEnv - Environment Manipulation.
  */

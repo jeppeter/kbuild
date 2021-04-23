@@ -1,4 +1,4 @@
-/* $Id: ntunlink.h 3060 2017-09-21 15:11:07Z bird $ */
+/* $Id$ */
 /** @file
  * MSC + NT unlink and variations.
  */

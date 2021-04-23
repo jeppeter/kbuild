@@ -1,4 +1,4 @@
-# $Id: testcase-kBuild-define.kmk 2720 2014-01-01 22:59:50Z bird $
+# $Id$
 ## @file
 # kBuild - testcase for the kBuild-define-* directives.
 #

@@ -1,4 +1,4 @@
-/* $Id: kRbEnum.h 35 2009-11-08 19:39:03Z bird $ */
+/* $Id$ */
 /** @file
  * kRbTmpl - Templated Red-Black Trees, Node Enumeration.
  */

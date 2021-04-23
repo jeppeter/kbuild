@@ -1,4 +1,4 @@
-/* $Id: kAvlUndef.h 29 2009-07-01 20:30:29Z bird $ */
+/* $Id$ */
 /** @file
  * kAvlTmpl - Undefines All Macros (both config and temp).
  */

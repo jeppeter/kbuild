@@ -1,4 +1,4 @@
-; $Id: tstExeMainStub-os2.asm 29 2009-07-01 20:30:29Z bird $
+; $Id$
 ;; @file
 ; kLdr - OS/2 entry point thingy...
 ;

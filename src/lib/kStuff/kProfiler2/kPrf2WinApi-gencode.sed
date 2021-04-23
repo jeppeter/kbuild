@@ -1,4 +1,4 @@
-# $Id: kPrf2WinApi-gencode.sed 29 2009-07-01 20:30:29Z bird $
+# $Id$
 ## @file
 # Generate code (for kernel32).
 #

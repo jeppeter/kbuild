@@ -1,4 +1,4 @@
-; $Id: kLdrExeStub-os2A.asm 29 2009-07-01 20:30:29Z bird $
+; $Id$
 ;; @file
 ; kLdr - OS/2 Loader Stub, entry point thingy...
 ;

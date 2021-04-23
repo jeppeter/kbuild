@@ -1,4 +1,4 @@
-/* $Id: kProfileR3.h 29 2009-07-01 20:30:29Z bird $ */
+/* $Id$ */
 /** @file
  * kProfiler Mark 2 - Internal header, Ring-3.
  */

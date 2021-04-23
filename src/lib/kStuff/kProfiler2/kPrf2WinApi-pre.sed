@@ -1,4 +1,4 @@
-# $Id: kPrf2WinApi-pre.sed 29 2009-07-01 20:30:29Z bird $
+# $Id$
 ## @file
 # This SED script will try normalize a windows header
 # in order to make it easy to pick out function prototypes.

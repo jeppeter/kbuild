@@ -1,4 +1,4 @@
-/* $Id: msc_buffered_printf.c 3188 2018-03-24 15:32:26Z bird $ */
+/* $Id$ */
 /** @file
  * printf, vprintf, fprintf, puts, fputs console optimizations for Windows/MSC.
  */

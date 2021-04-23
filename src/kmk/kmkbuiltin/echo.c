@@ -1,4 +1,4 @@
-/* $Id: echo.c 3192 2018-03-26 20:25:56Z bird $ */
+/* $Id$ */
 /** @file
  * kMk Builtin command - echo
  */

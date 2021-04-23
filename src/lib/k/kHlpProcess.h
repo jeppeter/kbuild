@@ -1,4 +1,4 @@
-/* $Id: kHlpProcess.h 29 2009-07-01 20:30:29Z bird $ */
+/* $Id$ */
 /** @file
  * kHlpProcess - Process Management.
  */

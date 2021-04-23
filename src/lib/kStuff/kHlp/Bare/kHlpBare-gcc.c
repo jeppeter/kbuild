@@ -1,4 +1,4 @@
-/* $Id: kHlpBare-gcc.c 29 2009-07-01 20:30:29Z bird $ */
+/* $Id$ */
 /** @file
  * kHlpBare - The Dynamic Loader, Helper Functions for GCC.
  */

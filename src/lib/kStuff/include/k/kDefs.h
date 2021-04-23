@@ -1,4 +1,4 @@
-/* $Id: kDefs.h 116 2019-01-08 19:23:20Z bird $ */
+/* $Id$ */
 /** @file
  * kTypes - Defines and Macros.
  */

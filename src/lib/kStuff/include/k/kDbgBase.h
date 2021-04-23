@@ -1,4 +1,4 @@
-/* $Id: kDbgBase.h 40 2010-02-02 16:02:15Z bird $ */
+/* $Id$ */
 /** @file
  * kDbg - The Debug Info Reader, Base Definitions and Typedefs.
  */

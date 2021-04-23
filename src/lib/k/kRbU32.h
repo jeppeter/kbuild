@@ -1,4 +1,4 @@
-/* $Id: kRbU32.h 35 2009-11-08 19:39:03Z bird $ */
+/* $Id$ */
 /** @file
  * kRb - Red-Black Tree Implementation, KU32 keys.
  */

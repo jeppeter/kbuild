@@ -1,4 +1,4 @@
-# $Id: kPrf2WinApi-dumpbin.sed 29 2009-07-01 20:30:29Z bird $
+# $Id$
 ## @file
 # Strip down dumpbin /export output.
 #

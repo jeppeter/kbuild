@@ -1,4 +1,4 @@
-/* $Id: prfreader.cpp.h 77 2016-06-22 17:03:55Z bird $ */
+/* $Id$ */
 /** @file
  * kProfiler Mark 2 - Reader Code Template.
  */

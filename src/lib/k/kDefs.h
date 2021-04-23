@@ -1,4 +1,4 @@
-/* $Id: kDefs.h 105 2017-11-21 23:55:40Z bird $ */
+/* $Id$ */
 /** @file
  * kTypes - Defines and Macros.
  */
@@ -338,9 +338,9 @@
 #  define K_ENDIAN K_ARCH_ENDIAN
 # elif defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && defined(__ORDER_BIG_ENDIAN__)
 #  if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#  define K_ENDIAN K_ARCH_LITTLE
+#  define K_ENDIAN K_ENDIAN_LITTLE
 #  elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-#  define K_ENDIAN K_ARCH_BIG
+#  define K_ENDIAN K_ENDIAN_BIG
 #  else
 #   error "Port Me or define K_ENDIAN."
 #  endif
@@ -349,7 +349,7 @@
 # endif
 #else
   /* validate the user defined value. */
-# if K_ENDIAN != K_ENDIAN_LITTLE
+# if K_ENDIAN != K_ENDIAN_LITTLE \
   && K_ENDIAN != K_ENDIAN_BIG
 #  error "K_ENDIAN must either be defined as K_ENDIAN_LITTLE or as K_ENDIAN_BIG."
 # endif

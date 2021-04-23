@@ -1,4 +1,4 @@
-; $Id: prfx86msc.asm 29 2009-07-01 20:30:29Z bird $
+; $Id$
 ;; @file
 ; kProfiler Mark 2 - Microsoft C/C++ Compiler Interaction, x86.
 ;

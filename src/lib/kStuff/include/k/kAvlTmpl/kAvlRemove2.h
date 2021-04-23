@@ -1,4 +1,4 @@
-/* $Id: kAvlRemove2.h 34 2009-11-08 19:38:40Z bird $ */
+/* $Id$ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, Remove A Specific Node.
  */

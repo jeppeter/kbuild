@@ -1,4 +1,4 @@
-/* $Id: electric.c 2798 2015-09-19 20:35:03Z bird $ */
+/* $Id$ */
 /** @file
  * A simple electric heap implementation.
  */

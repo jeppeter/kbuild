@@ -1,4 +1,4 @@
-/* $Id: kHlpBareAssert.c 82 2016-08-22 21:01:51Z bird $ */
+/* $Id$ */
 /** @file
  * kHlpBare - Assert Backend.
  */

@@ -1,4 +1,4 @@
-/* $Id: console.h 3188 2018-03-24 15:32:26Z bird $ */
+/* $Id$ */
 /** @file
  * console related functions.
  */

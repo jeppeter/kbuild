@@ -1,4 +1,4 @@
-/* $Id: kDbgHlpCrt.cpp 77 2016-06-22 17:03:55Z bird $ */
+/* $Id$ */
 /** @file
  * kDbg - The Debug Info Reader, Helpers, CRT Based Implementation.
  */

@@ -1,4 +1,4 @@
-/* $Id: kbuild-object.c 3141 2018-03-14 21:58:32Z bird $ */
+/* $Id$ */
 /** @file
  * kBuild objects.
  */

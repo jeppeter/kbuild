@@ -1,4 +1,4 @@
-/* $Id: kLdrMod.c 81 2016-08-18 22:10:38Z bird $ */
+/* $Id$ */
 /** @file
  * kLdr - The Module Interpreter.
  */

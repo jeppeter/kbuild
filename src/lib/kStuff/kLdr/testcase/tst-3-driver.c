@@ -1,4 +1,4 @@
-/* $Id: tst-3-driver.c 29 2009-07-01 20:30:29Z bird $ */
+/* $Id$ */
 /** @file
  * kLdr - Dynamic Loader testcase no. 3, Driver.
  */

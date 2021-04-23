@@ -1,4 +1,4 @@
-/* $Id: dos2unix.c 3114 2017-10-29 18:02:04Z bird $ */
+/* $Id$ */
 /** @file
  * dos2unix - Line ending conversion routines.
  */

@@ -1,4 +1,4 @@
-/* $Id: nthlpfs.c 3223 2018-03-31 02:29:56Z bird $ */
+/* $Id$ */
 /** @file
  * MSC + NT helpers for file system related functions.
  */

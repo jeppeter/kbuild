@@ -1,4 +1,4 @@
-/* $Id: kDeDup.c 3296 2019-01-22 21:29:08Z bird $ */
+/* $Id$ */
 /** @file
  * kDeDup - Utility that finds duplicate files, optionally hardlinking them.
  */

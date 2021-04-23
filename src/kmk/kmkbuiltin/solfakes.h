@@ -1,4 +1,4 @@
-/* $Id: solfakes.h 3213 2018-03-30 21:03:28Z bird $ */
+/* $Id$ */
 /** @file
  * Unix fakes for Solaris.
  */

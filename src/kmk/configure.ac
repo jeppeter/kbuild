@@ -121,6 +121,7 @@ pds_AC_DOS_PATHS
 AC_CACHE_CHECK([for standard gettimeofday], [ac_cv_func_gettimeofday],
   [ac_cv_func_gettimeofday=no
    AC_RUN_IFELSE([AC_LANG_SOURCE([[#include <sys/time.h>
+                  #include <stdlib.h> /* kmk/darwin: for exit */
                   int main ()
                   {
                     struct timeval t; t.tv_sec = -1; t.tv_usec = -1;
@@ -512,7 +513,7 @@ AS_IF([test "x$make_cv_load" = xno && test "x$user_load" = xyes],
 #AC_CONFIG_FILES([Makefile glob/Makefile po/Makefile.in config/Makefile \
 #                 doc/Makefile w32/Makefile tests/config-flags.pm])
 AC_CONFIG_FILES([Makefile glob/Makefile config/Makefile \
-                 w32/Makefile tests/config-flags.pm])
+                 doc/Makefile w32/Makefile tests/config-flags.pm])
 
 # OK, do it!
 

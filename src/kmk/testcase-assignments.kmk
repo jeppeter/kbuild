@@ -1,4 +1,4 @@
-# $Id: testcase-assignments.kmk 3154 2018-03-15 23:35:33Z bird $
+# $Id$
 # Testcase for weird various assignment operators and parsing.
 
 

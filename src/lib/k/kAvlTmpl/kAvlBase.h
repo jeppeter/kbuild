@@ -1,4 +1,4 @@
-/* $Id: kAvlBase.h 36 2009-11-09 22:49:02Z bird $ */
+/* $Id$ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, The Mandatory Base Code.
  */

@@ -1,4 +1,4 @@
-/* $Id: kDbgModule.cpp 29 2009-07-01 20:30:29Z bird $ */
+/* $Id$ */
 /** @file
  * kDbg - The Debug Info Reader, Module API.
  */

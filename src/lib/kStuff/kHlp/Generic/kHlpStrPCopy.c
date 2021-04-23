@@ -1,4 +1,4 @@
-/* $Id: kHlpStrPCopy.c 83 2016-08-30 18:38:12Z bird $ */
+/* $Id$ */
 /** @file
  * kHlpString - kHlpStrPCopy.
  */

@@ -1,4 +1,4 @@
-/* $Id: kPrf2WinApiWrappers.c 29 2009-07-01 20:30:29Z bird $ */
+/* $Id$ */
 /** @file
  * Wrappers for a number of common Windows APIs.
  */

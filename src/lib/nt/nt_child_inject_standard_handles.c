@@ -1,4 +1,4 @@
-/* $Id: nt_child_inject_standard_handles.c 3236 2018-10-28 14:15:41Z bird $ */
+/* $Id$ */
 /** @file
  * Injecting standard handles into a child process.
  */

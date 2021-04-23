@@ -1,4 +1,4 @@
-/* $Id: kHlpGetFilename.c 85 2016-09-06 03:21:04Z bird $ */
+/* $Id$ */
 /** @file
  * kHlpPath - kHlpGetFilename.
  */

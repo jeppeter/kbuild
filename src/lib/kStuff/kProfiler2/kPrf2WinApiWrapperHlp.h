@@ -1,4 +1,4 @@
-/* $Id: kPrf2WinApiWrapperHlp.h 29 2009-07-01 20:30:29Z bird $ */
+/* $Id$ */
 /** @file
  * Helpers for the Windows API wrapper DLL.
  */

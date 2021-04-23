@@ -1,4 +1,4 @@
-/* $Id: ntdir.h 3005 2016-11-06 00:07:37Z bird $ */
+/* $Id$ */
 /** @file
  * MSC + NT opendir, readdir, closedir and friends.
  */

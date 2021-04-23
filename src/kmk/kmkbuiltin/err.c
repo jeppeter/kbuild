@@ -1,4 +1,4 @@
-/* $Id: err.c 3237 2018-12-25 04:11:26Z bird $ */
+/* $Id$ */
 /** @file
  * Override err.h so we get the program name right.
  */
