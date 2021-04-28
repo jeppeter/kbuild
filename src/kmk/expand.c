@@ -15,7 +15,7 @@ You should have received a copy of the GNU General Public License along with
 this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "makeint.h"
-
+#include "debug.h"
 #include <assert.h>
 
 #include "filedef.h"
@@ -363,6 +363,7 @@ variable_expand_string (char *line, const char *string, long length)
   if (length == 0)
     {
       variable_buffer_output (o, "", 1);
+      DBV((_("expand [%s][%d] = [%s]"),string,length,variable_buffer));
       return (variable_buffer);
     }
 
@@ -559,6 +560,7 @@ variable_expand_string (char *line, const char *string, long length)
   free (save);
 
   variable_buffer_output (o, "", 1);
+  DBV((_("expand [%s][%d] = [%s]"),string,length,variable_buffer + line_offset));
   return (variable_buffer + line_offset);
 }
 
@@ -596,6 +598,7 @@ variable_expand_string_2 (char *line, const char *string, long length, char **eo
     {
       o = variable_buffer_output (o, "\0", 2);
       *eolp = o - 2;
+      DBV((_("expand [%s][%d] = [%s]"),string,length,variable_buffer + line_offset));
       return (variable_buffer + line_offset);
     }
 
@@ -608,6 +611,7 @@ variable_expand_string_2 (char *line, const char *string, long length, char **eo
       o = variable_buffer_output (o, "\0", 2);
       *eolp = o - 2;
       assert (strchr (variable_buffer + line_offset, '\0') == *eolp);
+      DBV((_("expand [%s][%d] = [%s]"),string,length,variable_buffer + line_offset));
       return (variable_buffer + line_offset);
     }
 
@@ -818,6 +822,7 @@ variable_expand_string_2 (char *line, const char *string, long length, char **eo
                  ("expected=%d actual=%d\nlength=%ld string=%.*s\n",
                   (int)(*eolp - variable_buffer + line_offset), (int)strlen(variable_buffer + line_offset),
                   length, (int)length, string));
+  DBV((_("expand [%s][%d] = [%s]"),string,length,variable_buffer + line_offset));
   return (variable_buffer + line_offset);
 }
 #endif /* CONFIG_WITH_VALUE_LENGTH */
