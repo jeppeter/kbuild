@@ -2873,6 +2873,7 @@ char *
 parse_variable_definition (const char *p, struct variable *var)
 {
   int wspace = 0;
+  const char* origptr = p;
   const char *e = NULL;
 
 /** @todo merge 4.2.1: parse_variable_definition does more now */
@@ -2928,8 +2929,14 @@ parse_variable_definition (const char *p, struct variable *var)
           e = p - 1;
           NEXT_TOKEN (p);
           c = *p;
-          if (c == '\0')
+          if (c == '\0'){
+            DBV((_("def [%s] flavor [%d:0x%x] name[%s][%d] value[%s]"), 
+              origptr, var->flavor,var->flavor, 
+              var->name ? var->name : "NULL",
+              var->length,
+              var->value ? var->value : "NULL"));
             return NULL;
+          }
           ++p;
         }
 
@@ -2982,8 +2989,14 @@ parse_variable_definition (const char *p, struct variable *var)
       if (c == ':')
         {
           /* A colon other than :=/::= is not a variable defn.  */
-          if (*p != ':' || p[1] != '=')
+          if (*p != ':' || p[1] != '='){
+            DBV((_("def [%s] flavor [%d:0x%x] name[%s][%d] value[%s]"), 
+              origptr, var->flavor,var->flavor, 
+              var->name ? var->name : "NULL",
+              var->length,
+              var->value ? var->value : "NULL"));
             return NULL;
+          }
 
           /* POSIX allows ::= to be the same as GNU make's := */
           var->flavor = f_simple;
@@ -3007,6 +3020,12 @@ parse_variable_definition (const char *p, struct variable *var)
   var->rdonly_val = 0;
 # endif
 #endif
+  DBV((_("def [%s] flavor [%d:0x%x] name[%s][%d] value[%s] return [%s]"), 
+    origptr, var->flavor,var->flavor, 
+    var->name ? var->name : "NULL",
+    var->length ,
+    var->value ? var->value : "NULL",
+    p));
   return (char *)p;
 }
 

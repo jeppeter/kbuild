@@ -655,12 +655,15 @@ static char *
 parse_var_assignment (const char *line, struct vmodifiers *vmod)
 {
   const char *p;
+  const char *origptr = line;
   memset (vmod, '\0', sizeof (*vmod));
 
   /* Find the start of the next token.  If there isn't one we're done.  */
   NEXT_TOKEN (line);
-  if (*line == '\0')
+  if (*line == '\0'){
+    DBV((_("parse [%s] return [%s]"),origptr, line));
     return (char *)line;
+  }
 
   p = line;
   while (1)
@@ -699,16 +702,21 @@ parse_var_assignment (const char *line, struct vmodifiers *vmod)
           p = next_token (p2);
           break;
         }
-      else
+      else{
         /* Not a variable or modifier: this is not a variable assignment.  */
+        DBV((_("parse [%s] return [%s]"),origptr, line));
         return (char *)line;
+      }
 
       /* It was a modifier.  Try the next word.  */
       p = next_token (p2);
-      if (*p == '\0')
+      if (*p == '\0'){
+        DBV((_("parse [%s] return [%s]"),origptr, line));
         return (char *)line;
+      }
     }
 
+    DBV((_("parse [%s] return [%s]"),origptr, p));
   /* Found a variable assignment or undefine.  */
   vmod->assign_v = 1;
   return (char *)p;
@@ -769,6 +777,7 @@ eval (struct ebuffer *ebuf, int set_default)
 
   fstart = &ebuf->floc;
   fi.filenm = ebuf->floc.filenm;
+  DBV((_("eval [%s.%d.%d]"), ebuf->floc.filenm,ebuf->floc.lineno,ebuf->floc.offset));
 
   /* Loop over lines in the file.
      The strategy is to accumulate target names in FILENAMES, dependencies
@@ -3063,6 +3072,8 @@ find_percent_cached (const char **string)
   char *new = 0;
   int slen = 0;
 
+  DBV((_("find_percent_cached [%s]"), p));
+
   /* If the first char is a % return now.  This lets us avoid extra tests
      inside the loop.  */
   if (*p == '%')
@@ -3121,6 +3132,7 @@ find_percent_cached (const char **string)
       *string = strcache_add (*string);
       p = *string + (p - new);
     }
+  DBV((_("*string [%s]"), *string));
 
   /* If we didn't find a %, return NULL.  Otherwise return a ptr to it.  */
   return (*p == '\0') ? NULL : p;
