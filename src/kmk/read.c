@@ -661,7 +661,7 @@ parse_var_assignment (const char *line, struct vmodifiers *vmod)
   /* Find the start of the next token.  If there isn't one we're done.  */
   NEXT_TOKEN (line);
   if (*line == '\0'){
-    DBV((_("parse [%s] return [%s]"),origptr, line));
+    //DBV((_("parse [%s] return [%s]"),origptr, line));
     return (char *)line;
   }
 
