@@ -733,7 +733,7 @@ eval (struct ebuffer *ebuf, int set_default)
   char *collapsed = 0;
   unsigned int collapsed_length = 0;
   unsigned int commands_len = 200;
-  char *commands;
+  char *commands = 0;
   unsigned int commands_idx = 0;
   unsigned int cmds_started, tgts_started;
   int ignoring = 0, in_ignored_define = 0;
@@ -788,7 +788,8 @@ eval (struct ebuffer *ebuf, int set_default)
      to the next line.  If you see record_waiting_files(), then the statement
      we are parsing also finishes the previous rule.  */
 
-  commands = xmalloc (200);
+  commands = xmalloc (commands_len);
+  memset(&(commands[commands_idx]), 0, (commands_len - commands_idx));
 
   while (1)
     {
@@ -866,6 +867,7 @@ eval (struct ebuffer *ebuf, int set_default)
                 {
                   commands_len = (linelen + commands_idx) * 2;
                   commands = xrealloc (commands, commands_len);
+                  memset(&(commands[commands_idx]), 0 , commands_len - commands_idx);
                 }
               memcpy (&commands[commands_idx], line + 1, linelen - 1);
               commands_idx += linelen - 1;
@@ -1652,6 +1654,7 @@ eval (struct ebuffer *ebuf, int set_default)
               {
                 commands_len = (l + 2) * 2;
                 commands = xrealloc (commands, commands_len);
+                memset(&(commands[commands_idx]), 0 , (commands_len - commands_idx));
               }
             memcpy (commands, cmdleft, l);
             commands_idx += l;
