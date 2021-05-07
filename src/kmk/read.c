@@ -2503,6 +2503,7 @@ record_files (struct nameseq *filenames, const char *pattern,
   const char *implicit_percent;
   const char *name;
 
+  DBV((_("filenames [%s] pattern [%s] depstr [%s] commands [%s]"),filenames->name,pattern,depstr,commands));
   /* If we've already snapped deps, that means we're in an eval being
      resolved after the makefiles have been read in.  We can't add more rules
      at this time, since they won't get snapped and we'll get core dumps.
@@ -3084,12 +3085,16 @@ find_percent_cached (const char **string)
       while (! STOP_SET (*p, MAP_PERCENT|MAP_NUL))
         ++p;
 
-      if (*p == '\0')
+      if (*p == '\0'){
+        DBV((_("p [\\0]")));
         break;
+      }
 
       /* See if this % is escaped with a backslash; if not we're done.  */
-      if (p[-1] != '\\')
+      if (p[-1] != '\\'){
+        DBV((_("p[-1] != '\\\\'")));
         break;
+      }
 
       {
         /* Search for more backslashes.  */
@@ -3132,7 +3137,7 @@ find_percent_cached (const char **string)
       *string = strcache_add (*string);
       p = *string + (p - new);
     }
-  DBV((_("*string [%s]"), *string));
+  DBV((_("*string [%s] new [%s]"), *string, new ? new : "NULL"));
 
   /* If we didn't find a %, return NULL.  Otherwise return a ptr to it.  */
   return (*p == '\0') ? NULL : p;

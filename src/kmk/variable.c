@@ -2877,6 +2877,7 @@ parse_variable_definition (const char *p, struct variable *var)
   const char *e = NULL;
 
 /** @todo merge 4.2.1: parse_variable_definition does more now */
+  memset(var,0,sizeof(*var));
   NEXT_TOKEN (p);
   var->name = (char *)p;
   var->length = 0;
