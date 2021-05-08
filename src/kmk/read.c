@@ -778,6 +778,7 @@ eval (struct ebuffer *ebuf, int set_default)
   fstart = &ebuf->floc;
   fi.filenm = ebuf->floc.filenm;
   DBV((_("eval [%s.%d.%d]"), ebuf->floc.filenm,ebuf->floc.lineno,ebuf->floc.offset));
+  DBV((_("buffer [%s][%d]"), ebuf->buffer, ebuf->size));
 
   /* Loop over lines in the file.
      The strategy is to accumulate target names in FILENAMES, dependencies
